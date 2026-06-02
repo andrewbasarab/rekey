@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Rekey;
+namespace RekeyNet;
 
 internal sealed class NgramLangChecker
 {
@@ -128,7 +128,7 @@ internal sealed class NgramLangChecker
     private static HashSet<string> ReadVocabulary(string name)
     {
         var assembly = Assembly.GetExecutingAssembly();
-        var resourceName = $"Rekey.Resources.{name}";
+        var resourceName = $"RekeyNet.Resources.{name}";
 
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName}");

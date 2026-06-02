@@ -1,4 +1,4 @@
-namespace Rekey;
+namespace RekeyNet;
 
 public enum TokenType
 {

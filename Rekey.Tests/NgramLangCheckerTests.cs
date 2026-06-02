@@ -1,4 +1,4 @@
-namespace Rekey.Tests;
+namespace RekeyNet.Tests;
 
 public class NgramLangCheckerTests
 {

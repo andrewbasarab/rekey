@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Rekey;
+namespace RekeyNet;
 
 /// <summary>
 /// Detects text typed in the wrong keyboard layout (EN↔RU, EN↔UK) and corrects it.
@@ -334,7 +334,7 @@ public sealed class Rekey
     private static Dictionary<string, string> LoadExceptions()
     {
         var assembly = Assembly.GetExecutingAssembly();
-        var resourceName = "Rekey.Resources.exceptions.csv";
+        var resourceName = "RekeyNet.Resources.exceptions.csv";
 
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName}");

@@ -1,4 +1,4 @@
-namespace Rekey;
+namespace RekeyNet;
 
 /// <summary>
 /// The result of analyzing a phrase: the original text, the corrected text (if the

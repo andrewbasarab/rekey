@@ -17,7 +17,7 @@ dotnet add package Rekey
 ## Usage
 
 ```csharp
-using Rekey;
+using RekeyNet;
 
 var rekey = new Rekey();
 

@@ -1,4 +1,4 @@
-namespace Rekey;
+namespace RekeyNet;
 
 internal static class Characters
 {
