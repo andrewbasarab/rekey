@@ -3,35 +3,65 @@ using System.Reflection;
 namespace Rekey;
 
 /// <summary>
-/// A tokenizer that detects wrong keyboard layout (EN↔RU, EN↔UK) and corrects it.
+/// Detects text typed in the wrong keyboard layout (EN↔RU, EN↔UK) and corrects it.
 /// Works like Punto Switcher using n-gram analysis.
 /// Supports English, Russian, and Ukrainian.
 /// </summary>
-public sealed class RekeyTokenizer : ITokenizer
+/// <example>
+/// <code>
+/// var rekey = new Rekey();
+/// string fixed = rekey.Correct("ghbdsn");   // "привіт"
+/// </code>
+/// </example>
+public sealed class Rekey
 {
     private const char Apostrophe = '\'';
     private const char Apostrophe1 = '`';
 
+    private static readonly Lazy<Rekey> Shared = new(() => new Rekey());
+
     private readonly NgramLangChecker _langChecker;
     private readonly Dictionary<string, string> _exceptions;
-    private readonly int _minTokenLength;
+    private readonly int _minWordLength;
 
-    internal RekeyTokenizer(NgramLangChecker langChecker, int minTokenLength)
+    /// <summary>
+    /// Creates a new instance with default settings. Loads the embedded n-gram
+    /// dictionaries once, so prefer reusing a single instance (it is stateless and
+    /// thread-safe). For dependency injection, register as a singleton.
+    /// </summary>
+    public Rekey() : this(0)
     {
-        _langChecker = langChecker;
-        _minTokenLength = minTokenLength;
+    }
+
+    /// <summary>
+    /// Creates a new instance that leaves words shorter than
+    /// <paramref name="minWordLength"/> untouched (they are too short to detect a
+    /// layout reliably).
+    /// </summary>
+    public Rekey(int minWordLength)
+    {
+        _langChecker = NgramLangChecker.Create();
+        _minWordLength = minWordLength;
         _exceptions = LoadExceptions();
     }
 
-    /// <summary>Creates a new tokenizer instance with default settings.</summary>
-    public static RekeyTokenizer Create() =>
-        new(NgramLangChecker.Create(), 0);
+    /// <summary>
+    /// A shared, lazily-created instance with default settings — convenient when you
+    /// don't use dependency injection.
+    /// </summary>
+    public static Rekey Default => Shared.Value;
 
-    /// <summary>Creates a new tokenizer instance with minimum token length.</summary>
-    public static RekeyTokenizer Create(int minTokenLength) =>
-        new(NgramLangChecker.Create(), minTokenLength);
+    /// <summary>
+    /// Returns the text with the keyboard layout corrected, or the original text
+    /// unchanged if no correction was needed.
+    /// </summary>
+    public string Correct(string text) => Analyze(text).Text;
 
-    public TokenizerResponse Tokenize(string input)
+    /// <summary>
+    /// Analyzes the text and returns a detailed result (original, corrected, words,
+    /// and whether a correction was applied).
+    /// </summary>
+    public RekeyResult Analyze(string input)
     {
         var uppercasePositions = Characters.UppercasePositions(input);
         string canonical = Canonical(input);
@@ -49,7 +79,7 @@ public sealed class RekeyTokenizer : ITokenizer
             ? null
             : corrected;
 
-        return new TokenizerResponse(input, correctedResult, wordTokens);
+        return new RekeyResult(input, correctedResult, wordTokens);
     }
 
     internal List<Token> Split(string input)
@@ -282,7 +312,7 @@ public sealed class RekeyTokenizer : ITokenizer
 
         var correctedValue = useException && _exceptions.TryGetValue(canonical, out string? exception)
             ? exception
-            : canonical.Length < _minTokenLength
+            : canonical.Length < _minWordLength
                 ? canonical
                 : corrected;
 
