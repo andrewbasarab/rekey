@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Rekey</RootNamespace>
+
+    <!-- NuGet Package -->
+    <PackageId>Rekey</PackageId>
+    <!-- Date-based NuGet package version (1.0.YYMMDD.HHMM). AssemblyVersion/FileVersion
+         are pinned separately because their components must each be <= 65534. -->
+    <Version>1.0.$([System.DateTime]::UtcNow.ToString('yyMMdd.HHmm'))</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Authors>Andrew Basarab</Authors>
+    <Description>Detects text typed in the wrong keyboard layout (EN/RU/UK) using n-gram analysis and rekeys it into the intended word. A server-side Punto Switcher for .NET.</Description>
+    <PackageTags>rekey;keyboard;layout;punto;switcher;russian;ukrainian;english;ngram</PackageTags>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\*.txt" />
+    <EmbeddedResource Include="Resources\*.csv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test project exercises internal types (CharType, NgramLangChecker, etc.) -->
+    <InternalsVisibleTo Include="Rekey.Tests" />
+  </ItemGroup>
+
+</Project>
