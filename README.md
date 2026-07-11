@@ -22,14 +22,14 @@ rekey.Correct("beautiful");  // → "beautiful" (valid text passes through untou
 ## Why you want this
 
 Anyone who types in two layouts does it every day: they forget to switch, type
-`vjcrdf` instead of `москва` into your search box, get **zero results**, and leave.
+`rdbnrb` instead of `квитки` into your search box, get **zero results**, and leave.
 If your audience uses Ukrainian or Russian alongside English, a real share of your
 searches, filters, and autocompletes silently fail.
 
 Rekey fixes that on the server, per request, with no UI changes:
 
 - ⚡ **Fast** — ~880,000 words/sec on a single thread; ~15 ms one-time load
-- 🪶 **Self-contained** — no dependencies, no network calls, dictionaries embedded (< 1 MB package)
+- 🪶 **Self-contained** — no dependencies, no network calls, dictionaries embedded (~1 MB package)
 - 🧵 **Thread-safe and stateless** — register one singleton and forget it
 - 🌍 **English ↔ Russian and English ↔ Ukrainian**, both directions, mixed text, digits and case preserved
 - 🛡️ **Safe by default** — `Correct()` returns the input unchanged unless the switched
@@ -42,6 +42,8 @@ Rekey fixes that on the server, per request, with no UI changes:
 ```bash
 dotnet add package Rekey
 ```
+
+Requires **.NET 8.0 or later** (targets `net8.0` and `net10.0`).
 
 ## Usage
 
