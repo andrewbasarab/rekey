@@ -55,3 +55,10 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local-only project docs (internal context, not for publishing)
+CLAUDE.md
+
+# VS publish profiles
+[Pp]roperties/PublishProfiles/
+*.pubxml

@@ -17,12 +17,18 @@
     <Description>Detects text typed in the wrong keyboard layout (EN/RU/UK) using n-gram analysis and rekeys it into the intended word. A server-side Punto Switcher for .NET.</Description>
     <PackageTags>rekey;keyboard;layout;punto;switcher;russian;ukrainian;english;ngram</PackageTags>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Resources\*.txt" />
     <EmbeddedResource Include="Resources\*.csv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>

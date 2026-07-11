@@ -2,8 +2,7 @@
 
 Quick, agent-oriented reference for consuming the **Rekey** library. If you are an AI
 agent integrating Rekey into another project, everything you need is here — you should not
-need to read the source. (Human-oriented overview: [README.md](README.md). Full project
-context for maintainers: [CLAUDE.md](CLAUDE.md).)
+need to read the source. (Human-oriented overview: [README.md](README.md).)
 
 ## What it does
 
@@ -12,8 +11,8 @@ word. Example: a user means to type `привіт` (Ukrainian) but leaves the En
 and types `ghbdsn` → Rekey returns `привіт`.
 
 - Languages: **English, Russian, Ukrainian**, both directions (EN↔RU, EN↔UK).
-- Pure n-gram analysis — no word list at runtime, small and fast.
-- Target framework: **net10.0**. Namespace: `Rekey`. NuGet id: `Rekey`.
+- N-gram analysis plus two compact embedded word lists for RU↔UK disambiguation — small and fast.
+- Target framework: **net10.0**. Namespace: `RekeyNet`. NuGet id: `Rekey`.
 
 ## Install
 
@@ -51,7 +50,7 @@ directly where a `string` is expected.
 ## Usage
 
 ```csharp
-using Rekey;
+using RekeyNet;
 
 var rekey = new Rekey();
 
@@ -79,8 +78,9 @@ result.Words;         // ["привіт"]
 - **Check `WasCorrected` (or `Corrected != null`)** before treating the result as a change.
   Use `Corrected!` (non-null) only inside that branch; use `Text` everywhere else.
 - **Language priority is Russian > Ukrainian** for ambiguous Cyrillic. Uniquely Ukrainian
-  (`і ї є ґ`) or Russian (`ы э ъ ё`) characters override this. You cannot configure priority
-  yet.
+  (`і ї є ґ`) or Russian (`ы э ъ ё`) characters override this, and when a token switches to
+  a plausible word in both languages, embedded known-word lists pick the real word. You
+  cannot configure priority yet.
 - **No smart filtering yet.** Rekey will attempt to switch *any* word token, including
   things like emails, URLs, passwords, and camelCase identifiers. If your input may contain
   such tokens and you don't want them touched, filter them out before calling Rekey.
