@@ -1,0 +1,42 @@
+name: Release to NuGet
+
+# Publishes on version tags: git tag v1.0.0 && git push --tags
+# Uses NuGet Trusted Publishing (OIDC) — no API key secrets stored anywhere.
+# One-time setup on nuget.org: profile → Trusted Publishing → Add policy:
+#   Repository owner: andrewbasarab, Repository: rekey, Workflow: release.yml
+# Then fill in the `user:` field below with your nuget.org username.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write # required for Trusted Publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Test
+        run: dotnet test -c Release
+
+      - name: Pack (version from tag)
+        run: dotnet pack Rekey/Rekey.csproj -c Release -p:Version=${GITHUB_REF_NAME#v} -o out
+
+      - name: NuGet login (Trusted Publishing)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: YOUR_NUGET_USERNAME # <-- replace with your nuget.org username
+
+      - name: Push
+        run: dotnet nuget push out/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ steps.login.outputs.NUGET_API_KEY }}

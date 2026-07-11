@@ -21,34 +21,31 @@ internal sealed class NgramLangChecker
         _nonexistent4gram = nonexistent4gram;
     }
 
-    public static NgramLangChecker Create()
+    /// <summary>Loads the n-gram dictionaries for the given languages only.</summary>
+    public static NgramLangChecker Create(IReadOnlyCollection<Lang> languages)
     {
         return new NgramLangChecker(
-            new Dictionary<Lang, HashSet<string>>
-            {
-                [Lang.En] = ReadVocabulary("nonexistent2gram-en.txt"),
-                [Lang.Ru] = ReadVocabulary("nonexistent2gram-ru.txt"),
-                [Lang.Uk] = ReadVocabulary("nonexistent2gram-uk.txt")
-            },
-            new Dictionary<Lang, HashSet<string>>
-            {
-                [Lang.En] = ReadVocabulary("nonexistent3gram-en.txt"),
-                [Lang.Ru] = ReadVocabulary("nonexistent3gram-ru.txt"),
-                [Lang.Uk] = ReadVocabulary("nonexistent3gram-uk.txt")
-            },
-            new Dictionary<Lang, HashSet<string>>
-            {
-                [Lang.En] = ReadVocabulary("nonexistentFirst4gram-en.txt"),
-                [Lang.Ru] = ReadVocabulary("nonexistentFirst4gram-ru.txt"),
-                [Lang.Uk] = ReadVocabulary("nonexistentFirst4gram-uk.txt")
-            },
-            new Dictionary<Lang, HashSet<string>>
-            {
-                [Lang.En] = ReadVocabulary("nonexistent4gram-en.txt"),
-                [Lang.Ru] = ReadVocabulary("nonexistent4gram-ru.txt"),
-                [Lang.Uk] = ReadVocabulary("nonexistent4gram-uk.txt")
-            });
+            Load("nonexistent2gram"),
+            Load("nonexistent3gram"),
+            Load("nonexistentFirst4gram"),
+            Load("nonexistent4gram"));
+
+        Dictionary<Lang, HashSet<string>> Load(string prefix)
+        {
+            var vocabularies = new Dictionary<Lang, HashSet<string>>();
+            foreach (var lang in languages)
+                vocabularies[lang] = ReadVocabulary($"{prefix}-{FileSuffix(lang)}.txt");
+            return vocabularies;
+        }
     }
+
+    private static string FileSuffix(Lang lang) => lang switch
+    {
+        Lang.En => "en",
+        Lang.Ru => "ru",
+        Lang.Uk => "uk",
+        _ => throw new ArgumentOutOfRangeException(nameof(lang), lang, null)
+    };
 
     public bool Check(Lang lang, string word)
     {

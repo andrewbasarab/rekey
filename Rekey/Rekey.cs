@@ -20,10 +20,13 @@ public sealed class Rekey
 
     private static readonly Lazy<Rekey> Shared = new(() => new Rekey());
 
+    private static readonly Lang[] AllCyrillicLangs = [Lang.Ru, Lang.Uk];
+
     private readonly NgramLangChecker _langChecker;
     private readonly Dictionary<string, string> _exceptions;
-    private readonly HashSet<string> _knownRuWords;
-    private readonly HashSet<string> _knownUkWords;
+    private readonly Dictionary<Lang, HashSet<string>> _knownWords;
+    private readonly bool _enEnabled;
+    private readonly Lang[] _cyrillicLangs; // enabled Cyrillic languages, in priority order
     private readonly int _minWordLength;
 
     /// <summary>
@@ -31,7 +34,7 @@ public sealed class Rekey
     /// dictionaries once, so prefer reusing a single instance (it is stateless and
     /// thread-safe). For dependency injection, register as a singleton.
     /// </summary>
-    public Rekey() : this(0)
+    public Rekey() : this(new RekeyOptions())
     {
     }
 
@@ -40,13 +43,34 @@ public sealed class Rekey
     /// <paramref name="minWordLength"/> untouched (they are too short to detect a
     /// layout reliably).
     /// </summary>
-    public Rekey(int minWordLength)
+    public Rekey(int minWordLength) : this(new RekeyOptions { MinWordLength = minWordLength })
     {
-        _langChecker = NgramLangChecker.Create();
-        _minWordLength = minWordLength;
+    }
+
+    /// <summary>
+    /// Creates a new instance with the given <paramref name="options"/> — e.g. to
+    /// disable a language or change language priority.
+    /// </summary>
+    public Rekey(RekeyOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var languages = options.Languages.Distinct().ToArray();
+        if (languages.Length == 0)
+            throw new ArgumentException("At least one language must be enabled.", nameof(options));
+
+        _enEnabled = languages.Contains(Lang.En);
+        _cyrillicLangs = languages.Where(l => l is Lang.Ru or Lang.Uk).ToArray();
+        _minWordLength = options.MinWordLength;
+        _langChecker = NgramLangChecker.Create(languages);
         _exceptions = LoadExceptions();
-        _knownRuWords = LoadWordSet("knownwords-ru.txt");
-        _knownUkWords = LoadWordSet("knownwords-uk.txt");
+
+        // The RU/UK known-word tie-break is only needed when both compete.
+        _knownWords = [];
+        if (_cyrillicLangs.Length > 1)
+        {
+            _knownWords[Lang.Ru] = LoadWordSet("knownwords-ru.txt");
+            _knownWords[Lang.Uk] = LoadWordSet("knownwords-uk.txt");
+        }
     }
 
     /// <summary>
@@ -153,43 +177,59 @@ public sealed class Rekey
 
     /// <summary>
     /// Token looks like English but might be Cyrillic typed in wrong layout.
-    /// Try switching to RU first (higher traffic), then UK.
+    /// Try the enabled Cyrillic languages in priority order.
     /// </summary>
     private List<Token> EnOrPossibleCyrillic(Token token)
     {
         string corrected = token.Canonical;
 
-        if (!_langChecker.Check(Lang.En, token.Canonical))
-        {
-            string switchedRu = Characters.SwitchLang(token.Canonical, Lang.Ru);
-            string switchedUk = Characters.SwitchLang(token.Canonical, Lang.Uk);
-
-            bool ruValid = _langChecker.Check(Lang.Ru, switchedRu);
-            bool ambiguous = ruValid && switchedRu != switchedUk
-                && _langChecker.Check(Lang.Uk, switchedUk);
-
-            if (ambiguous)
-                corrected = PreferKnownWord(switchedRu, switchedUk);
-            else if (ruValid)
-                corrected = switchedRu;
-            else if (_langChecker.Check(Lang.Uk, switchedUk))
-                corrected = switchedUk;
-        }
+        if (!(_enEnabled && _langChecker.Check(Lang.En, token.Canonical)))
+            corrected = SwitchToCyrillic(token.Canonical) ?? token.Canonical;
 
         return [BuildToken(token.Type, token.Corrected, token.Canonical, corrected)];
     }
 
     /// <summary>
-    /// The RU and UK layouts differ only on the s/]/'/` keys (ы/ъ/э/ё vs і/ї/є/ґ), so a
-    /// wrong-layout token often switches to an n-gram-plausible word in BOTH languages
-    /// (e.g. "ghbdsn" → "привыт"/"привіт"). N-grams cannot arbitrate that; known-word
-    /// lists can. Falls back to Russian (higher traffic) when neither word is known.
+    /// Switches a Latin token into each enabled Cyrillic language and returns the most
+    /// plausible result, or null when none is plausible. The RU and UK layouts differ
+    /// only on the s/]/'/` keys (ы/ъ/э/ё vs і/ї/є/ґ), so a wrong-layout token often
+    /// switches to an n-gram-plausible word in BOTH languages (e.g. "ghbdsn" →
+    /// "привыт"/"привіт"). N-grams cannot arbitrate that; the embedded known-word lists
+    /// can. Falls back to configured language priority when neither word is known.
     /// </summary>
-    private string PreferKnownWord(string switchedRu, string switchedUk)
+    private string? SwitchToCyrillic(string canonical)
     {
-        if (_knownRuWords.Contains(switchedRu)) return switchedRu;
-        if (_knownUkWords.Contains(switchedUk)) return switchedUk;
-        return switchedRu;
+        string? first = null;
+        Lang firstLang = default;
+
+        foreach (var lang in _cyrillicLangs)
+        {
+            string switched = Characters.SwitchLang(canonical, lang);
+            if (!_langChecker.Check(lang, switched))
+                continue;
+
+            if (first is null)
+            {
+                first = switched;
+                firstLang = lang;
+                continue;
+            }
+
+            if (switched == first)
+                return first;
+            return PreferKnownWord(first, firstLang, switched, lang);
+        }
+
+        return first;
+    }
+
+    private string PreferKnownWord(string first, Lang firstLang, string second, Lang secondLang)
+    {
+        if (_knownWords.TryGetValue(firstLang, out var knownFirst) && knownFirst.Contains(first))
+            return first;
+        if (_knownWords.TryGetValue(secondLang, out var knownSecond) && knownSecond.Contains(second))
+            return second;
+        return first;
     }
 
     /// <summary>
@@ -204,19 +244,9 @@ public sealed class Rekey
         }
         else
         {
-            string switchedRu = Characters.SwitchLang(token.Canonical, Lang.Ru);
-            string switchedUk = Characters.SwitchLang(token.Canonical, Lang.Uk);
-
-            bool ruValid = _langChecker.Check(Lang.Ru, switchedRu);
-            bool ambiguous = ruValid && switchedRu != switchedUk
-                && _langChecker.Check(Lang.Uk, switchedUk);
-
-            if (ambiguous)
-                return [BuildToken(token.Type, token.Corrected, token.Canonical, PreferKnownWord(switchedRu, switchedUk))];
-            if (ruValid)
-                return [BuildToken(token.Type, token.Corrected, token.Canonical, switchedRu)];
-            if (_langChecker.Check(Lang.Uk, switchedUk))
-                return [BuildToken(token.Type, token.Corrected, token.Canonical, switchedUk)];
+            string? switched = SwitchToCyrillic(token.Canonical);
+            if (switched != null)
+                return [BuildToken(token.Type, token.Corrected, token.Canonical, switched)];
 
             return SplitBySpecificSeparators(token.Canonical, Characters.IsSeparatorOrPossibleRu, useExceptions: true);
         }
@@ -234,44 +264,41 @@ public sealed class Rekey
         bool hasUkChars = Characters.HasUkrainianSpecificChars(token.Canonical);
         bool hasRuChars = Characters.HasRussianSpecificChars(token.Canonical);
 
-        if (hasUkChars && !hasRuChars)
+        if (hasUkChars ^ hasRuChars)
         {
-            // Definitely Ukrainian chars → check UK, then try EN
-            if (!_langChecker.Check(Lang.Uk, token.Canonical))
+            // Language-specific chars pin the layout the token was typed on.
+            var lang = hasUkChars ? Lang.Uk : Lang.Ru;
+            bool valid = _cyrillicLangs.Contains(lang) && _langChecker.Check(lang, token.Canonical);
+            if (!valid && _enEnabled)
             {
-                string switched = Characters.SwitchToEn(token.Canonical, Lang.Uk);
-                if (_langChecker.Check(Lang.En, switched))
-                    corrected = switched;
-            }
-        }
-        else if (hasRuChars && !hasUkChars)
-        {
-            // Definitely Russian chars → check RU, then try EN
-            if (!_langChecker.Check(Lang.Ru, token.Canonical))
-            {
-                string switched = Characters.SwitchToEn(token.Canonical, Lang.Ru);
+                string switched = Characters.SwitchToEn(token.Canonical, lang);
                 if (_langChecker.Check(Lang.En, switched))
                     corrected = switched;
             }
         }
         else
         {
-            // Ambiguous (shared chars) → try both, RU has priority
-            if (!_langChecker.Check(Lang.Ru, token.Canonical)
-                && !_langChecker.Check(Lang.Uk, token.Canonical))
+            // Shared chars only — valid if any enabled Cyrillic language accepts it
+            bool valid = false;
+            foreach (var lang in _cyrillicLangs)
             {
-                // Try switching from RU layout first
-                string switchedFromRu = Characters.SwitchToEn(token.Canonical, Lang.Ru);
-                if (_langChecker.Check(Lang.En, switchedFromRu))
+                if (_langChecker.Check(lang, token.Canonical))
                 {
-                    corrected = switchedFromRu;
+                    valid = true;
+                    break;
                 }
-                else
+            }
+
+            if (!valid && _enEnabled)
+            {
+                foreach (var lang in SwitchSourceLangs())
                 {
-                    // Try switching from UK layout
-                    string switchedFromUk = Characters.SwitchToEn(token.Canonical, Lang.Uk);
-                    if (_langChecker.Check(Lang.En, switchedFromUk))
-                        corrected = switchedFromUk;
+                    string switched = Characters.SwitchToEn(token.Canonical, lang);
+                    if (_langChecker.Check(Lang.En, switched))
+                    {
+                        corrected = switched;
+                        break;
+                    }
                 }
             }
         }
@@ -280,48 +307,39 @@ public sealed class Rekey
     }
 
     /// <summary>
+    /// Cyrillic layouts to try when converting a Cyrillic token back to English.
+    /// With no Cyrillic language enabled (EN-only config), still try both physical
+    /// layouts — the token had to be typed on one of them.
+    /// </summary>
+    private Lang[] SwitchSourceLangs() => _cyrillicLangs.Length > 0 ? _cyrillicLangs : AllCyrillicLangs;
+
+    /// <summary>
     /// Token has Cyrillic chars that could be separators (б,ю,ж,х,ъ,ї,ґ etc.).
     /// </summary>
     private List<Token> CyrillicOrPossibleSeparator(Token token)
     {
-        // Check if valid in Russian or Ukrainian (RU has priority)
-        bool correctRu = _langChecker.Check(Lang.Ru, token.Canonical);
-        bool correctUk = !correctRu && _langChecker.Check(Lang.Uk, token.Canonical);
-        bool correct = correctRu || correctUk;
-
-        List<Token> splitByPossibleSeparators = [];
-
-        if (!correct)
+        // Valid in any enabled Cyrillic language → keep as typed
+        foreach (var lang in _cyrillicLangs)
         {
-            // Try switching to EN from RU layout first, then UK
-            splitByPossibleSeparators = SplitBySpecificSeparators(
-                Characters.SwitchToEn(token.Canonical, Lang.Ru),
-                Characters.IsSeparatorOrPossibleRu,
-                useExceptions: true);
-            correct = !CheckAll(splitByPossibleSeparators, Lang.En);
+            if (_langChecker.Check(lang, token.Canonical))
+                return [BuildToken(token.Type, token.Corrected, token.Canonical, token.Canonical)];
+        }
 
-            if (correct)
+        if (_enEnabled)
+        {
+            // Try reading the token as English typed on one of the Cyrillic layouts
+            foreach (var lang in SwitchSourceLangs())
             {
-                // Also try from UK layout
-                var splitUk = SplitBySpecificSeparators(
-                    Characters.SwitchToEn(token.Canonical, Lang.Uk),
+                var split = SplitBySpecificSeparators(
+                    Characters.SwitchToEn(token.Canonical, lang),
                     Characters.IsSeparatorOrPossibleRu,
                     useExceptions: true);
-                if (!CheckAll(splitUk, Lang.En))
-                    correct = true;
-                else
-                    correct = false;
+                if (CheckAll(split, Lang.En))
+                    return split;
             }
         }
 
-        if (correct)
-        {
-            return [BuildToken(token.Type, token.Corrected, token.Canonical, token.Canonical)];
-        }
-        else
-        {
-            return splitByPossibleSeparators;
-        }
+        return [BuildToken(token.Type, token.Corrected, token.Canonical, token.Canonical)];
     }
 
     private static string Canonical(string candidate) =>

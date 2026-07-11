@@ -30,6 +30,7 @@ There are exactly two public types: the `Rekey` class and the `RekeyResult` it r
 |--------|-----------|-------|
 | ctor | `new Rekey()` | Default; loads embedded dictionaries once. |
 | ctor | `new Rekey(int minWordLength)` | Words shorter than `minWordLength` are left untouched. |
+| ctor | `new Rekey(RekeyOptions options)` | Configure enabled languages and priority (see below). |
 | static | `Rekey.Default` | Shared lazy singleton — use when you don't have DI. |
 | method | `string Correct(string text)` | Returns corrected text, or the **original unchanged** if no fix was needed. |
 | method | `RekeyResult Analyze(string input)` | Returns details (see below). |
@@ -77,10 +78,12 @@ result.Words;         // ["привіт"]
   needed, so it is safe to call on every input. Don't guard it with your own heuristics.
 - **Check `WasCorrected` (or `Corrected != null`)** before treating the result as a change.
   Use `Corrected!` (non-null) only inside that branch; use `Text` everywhere else.
-- **Language priority is Russian > Ukrainian** for ambiguous Cyrillic. Uniquely Ukrainian
-  (`і ї є ґ`) or Russian (`ы э ъ ё`) characters override this, and when a token switches to
-  a plausible word in both languages, embedded known-word lists pick the real word. You
-  cannot configure priority yet.
+- **Languages are configurable.** Default is all three with Russian > Ukrainian priority
+  for ambiguous Cyrillic. Uniquely Ukrainian (`і ї є ґ`) or Russian (`ы э ъ ё`) characters
+  override priority, and when a token switches to a plausible word in both languages,
+  embedded known-word lists pick the real word. To disable a language or change priority:
+  `new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk] })` — order = priority,
+  omitted languages never appear in corrections.
 - **No smart filtering yet.** Rekey will attempt to switch *any* word token, including
   things like emails, URLs, passwords, and camelCase identifiers. If your input may contain
   such tokens and you don't want them touched, filter them out before calling Rekey.

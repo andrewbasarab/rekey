@@ -70,6 +70,16 @@ result.Words;         // ["привіт"]
 
 `RekeyResult` converts implicitly to `string` (yields `Text`).
 
+Don't need one of the languages? Configure the set — and the priority — with options:
+
+```csharp
+// Ukrainian-only product: Russian corrections never appear
+var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk] });
+
+// Or keep all languages but prefer Ukrainian on ambiguity:
+var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk, Lang.Ru] });
+```
+
 ### Recipe: search that survives the wrong layout
 
 Don't replace the user's query — **OR** the original and corrected variants, so you

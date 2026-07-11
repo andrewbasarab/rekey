@@ -139,6 +139,32 @@ public class RekeyTests
         Assert.Equal("сіль", rekey.Correct("cskm"));
     }
 
+    [Fact]
+    public void LanguagesAreConfigurable()
+    {
+        // Ukrainian-only: Russian corrections never appear
+        var ukOnly = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk] });
+        Assert.Equal("привіт", ukOnly.Correct("ghbdsn"));
+        Assert.Equal("сіль", ukOnly.Correct("cskm"));
+        Assert.Equal("hello", ukOnly.Correct("руддщ"));
+
+        // Russian-only: Ukrainian corrections never appear
+        var ruOnly = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Ru] });
+        Assert.Equal("частица", ruOnly.Correct("xfcnbwf"));
+        Assert.Equal("мысль", ruOnly.Correct("vsckm"));
+        Assert.Equal("привыт", ruOnly.Correct("ghbdsn")); // the RU twin — UK is opted out
+    }
+
+    [Fact]
+    public void LanguagePriorityIsConfigurable()
+    {
+        // Ukrainian first — but known-word lists still rescue real Russian words
+        var ukFirst = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk, Lang.Ru] });
+        Assert.Equal("привіт", ukFirst.Correct("ghbdsn"));
+        Assert.Equal("мысль", ukFirst.Correct("vsckm"));
+        Assert.Equal("подъезд", ukFirst.Correct("gjl]tpl"));
+    }
+
     // === General tests ===
 
     [Fact]
