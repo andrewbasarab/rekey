@@ -36,7 +36,7 @@ jobs:
         id: login
         uses: NuGet/login@v1
         with:
-          user: YOUR_NUGET_USERNAME # <-- replace with your nuget.org username
+          user: andrewbasarab
 
       - name: Push
         run: dotnet nuget push out/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ steps.login.outputs.NUGET_API_KEY }}
