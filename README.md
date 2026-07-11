@@ -1,5 +1,6 @@
 # Rekey
 
+[![CI](https://github.com/andrewbasarab/rekey/actions/workflows/ci.yml/badge.svg)](https://github.com/andrewbasarab/rekey/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Rekey.svg)](https://www.nuget.org/packages/Rekey)
 [![Downloads](https://img.shields.io/nuget/dt/Rekey.svg)](https://www.nuget.org/packages/Rekey)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
