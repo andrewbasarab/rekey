@@ -14,8 +14,11 @@
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
     <Authors>Andrew Basarab</Authors>
-    <Description>Detects text typed in the wrong keyboard layout (EN/RU/UK) using n-gram analysis and rekeys it into the intended word. A server-side Punto Switcher for .NET.</Description>
-    <PackageTags>rekey;keyboard;layout;punto;switcher;russian;ukrainian;english;ngram</PackageTags>
+    <Description>Detects text typed in the wrong keyboard layout (EN ↔ UK/RU) and rekeys it into the intended word — a server-side Punto Switcher for .NET. N-gram analysis, no dependencies, ~880k words/sec.</Description>
+    <PackageProjectUrl>https://github.com/andrewbasarab/rekey</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/andrewbasarab/rekey</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>rekey;keyboard;layout;punto;switcher;russian;ukrainian;english;ngram;autocomplete;search</PackageTags>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
