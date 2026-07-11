@@ -22,6 +22,8 @@ public sealed class Rekey
 
     private readonly NgramLangChecker _langChecker;
     private readonly Dictionary<string, string> _exceptions;
+    private readonly HashSet<string> _knownRuWords;
+    private readonly HashSet<string> _knownUkWords;
     private readonly int _minWordLength;
 
     /// <summary>
@@ -43,6 +45,8 @@ public sealed class Rekey
         _langChecker = NgramLangChecker.Create();
         _minWordLength = minWordLength;
         _exceptions = LoadExceptions();
+        _knownRuWords = LoadWordSet("knownwords-ru.txt");
+        _knownUkWords = LoadWordSet("knownwords-uk.txt");
     }
 
     /// <summary>
@@ -157,17 +161,35 @@ public sealed class Rekey
 
         if (!_langChecker.Check(Lang.En, token.Canonical))
         {
-            // Try Russian first (higher traffic), then Ukrainian
             string switchedRu = Characters.SwitchLang(token.Canonical, Lang.Ru);
             string switchedUk = Characters.SwitchLang(token.Canonical, Lang.Uk);
 
-            if (_langChecker.Check(Lang.Ru, switchedRu))
+            bool ruValid = _langChecker.Check(Lang.Ru, switchedRu);
+            bool ambiguous = ruValid && switchedRu != switchedUk
+                && _langChecker.Check(Lang.Uk, switchedUk);
+
+            if (ambiguous)
+                corrected = PreferKnownWord(switchedRu, switchedUk);
+            else if (ruValid)
                 corrected = switchedRu;
             else if (_langChecker.Check(Lang.Uk, switchedUk))
                 corrected = switchedUk;
         }
 
         return [BuildToken(token.Type, token.Corrected, token.Canonical, corrected)];
+    }
+
+    /// <summary>
+    /// The RU and UK layouts differ only on the s/]/'/` keys (ы/ъ/э/ё vs і/ї/є/ґ), so a
+    /// wrong-layout token often switches to an n-gram-plausible word in BOTH languages
+    /// (e.g. "ghbdsn" → "привыт"/"привіт"). N-grams cannot arbitrate that; known-word
+    /// lists can. Falls back to Russian (higher traffic) when neither word is known.
+    /// </summary>
+    private string PreferKnownWord(string switchedRu, string switchedUk)
+    {
+        if (_knownRuWords.Contains(switchedRu)) return switchedRu;
+        if (_knownUkWords.Contains(switchedUk)) return switchedUk;
+        return switchedRu;
     }
 
     /// <summary>
@@ -182,12 +204,17 @@ public sealed class Rekey
         }
         else
         {
-            // Try Russian first (higher traffic), then Ukrainian
             string switchedRu = Characters.SwitchLang(token.Canonical, Lang.Ru);
-            if (_langChecker.Check(Lang.Ru, switchedRu))
-                return [BuildToken(token.Type, token.Corrected, token.Canonical, switchedRu)];
-
             string switchedUk = Characters.SwitchLang(token.Canonical, Lang.Uk);
+
+            bool ruValid = _langChecker.Check(Lang.Ru, switchedRu);
+            bool ambiguous = ruValid && switchedRu != switchedUk
+                && _langChecker.Check(Lang.Uk, switchedUk);
+
+            if (ambiguous)
+                return [BuildToken(token.Type, token.Corrected, token.Canonical, PreferKnownWord(switchedRu, switchedUk))];
+            if (ruValid)
+                return [BuildToken(token.Type, token.Corrected, token.Canonical, switchedRu)];
             if (_langChecker.Check(Lang.Uk, switchedUk))
                 return [BuildToken(token.Type, token.Corrected, token.Canonical, switchedUk)];
 
@@ -329,6 +356,25 @@ public sealed class Rekey
                 return false;
         }
         return atLeastOneWord;
+    }
+
+    private static HashSet<string> LoadWordSet(string name)
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var resourceName = $"RekeyNet.Resources.{name}";
+
+        using var stream = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Embedded resource not found: {resourceName}");
+
+        using var reader = new StreamReader(stream);
+        var words = new HashSet<string>();
+        string? line;
+        while ((line = reader.ReadLine()) != null)
+        {
+            if (!string.IsNullOrEmpty(line))
+                words.Add(line);
+        }
+        return words;
     }
 
     private static Dictionary<string, string> LoadExceptions()

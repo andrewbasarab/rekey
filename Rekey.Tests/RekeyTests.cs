@@ -124,6 +124,21 @@ public class RekeyTests
         Assert.Equal("music", rekey.Correct("ьгішс"));
     }
 
+    [Fact]
+    public void PrefersKnownWordOnRussianUkrainianAmbiguity()
+    {
+        // The RU/UK layouts differ only on the s ] ' ` keys, so a wrong-layout token
+        // often switches to an n-gram-plausible word in both languages. The known-word
+        // lists must arbitrate.
+        var rekey = new Rekey();
+
+        // "vsckm" → RU "мысль" (real word) vs UK "місль" (plausible nonsense)
+        Assert.Equal("мысль", rekey.Correct("vsckm"));
+
+        // "cskm" → UK "сіль" (real word) vs RU "сыль" (plausible nonsense)
+        Assert.Equal("сіль", rekey.Correct("cskm"));
+    }
+
     // === General tests ===
 
     [Fact]
