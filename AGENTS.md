@@ -12,7 +12,7 @@ and types `ghbdsn` → Rekey returns `привіт`.
 
 - Languages: **English, Russian, Ukrainian**, both directions (EN↔RU, EN↔UK).
 - N-gram analysis plus two compact embedded word lists for RU↔UK disambiguation — small and fast.
-- Target framework: **net10.0**. Namespace: `RekeyNet`. NuGet id: `Rekey`.
+- Target frameworks: **net8.0** and **net10.0** (requires .NET 8.0+). Namespace: `RekeyNet`. NuGet id: `Rekey`.
 
 ## Install
 

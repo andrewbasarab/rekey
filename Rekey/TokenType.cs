@@ -1,6 +1,6 @@
 namespace RekeyNet;
 
-public enum TokenType
+internal enum TokenType
 {
     Separator,
     Word
