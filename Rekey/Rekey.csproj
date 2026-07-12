@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>RekeyNet</RootNamespace>
@@ -32,6 +33,12 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\*.txt" />
     <EmbeddedResource Include="Resources\*.csv" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile-time polyfills (Range/Index, init-only setters, …) for netstandard2.0.
+         No runtime dependency — everything is source-generated internal. -->
+    <PackageReference Include="PolySharp" Version="1.*" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

@@ -60,7 +60,8 @@ public sealed class Rekey
     /// </summary>
     public Rekey(RekeyOptions options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        if (options is null)
+            throw new ArgumentNullException(nameof(options));
         var languages = options.Languages.Distinct().ToArray();
         if (languages.Length == 0)
             throw new ArgumentException("At least one language must be enabled.", nameof(options));
@@ -416,7 +417,7 @@ public sealed class Rekey
     /// </summary>
     private static bool IsProtectedToken(string token)
     {
-        if (token.Contains("://", StringComparison.Ordinal)
+        if (token.IndexOf("://", StringComparison.Ordinal) >= 0
             || token.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
             return true;
 

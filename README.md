@@ -32,7 +32,7 @@ searches, filters, and autocompletes silently fail.
 Rekey fixes that on the server, per request, with no UI changes:
 
 - ⚡ **Fast** — ~880,000 words/sec on a single thread; ~15 ms one-time load
-- 🪶 **Self-contained** — no dependencies, no network calls, dictionaries embedded (~1.5 MB package)
+- 🪶 **Self-contained** — no dependencies, no network calls, all dictionaries embedded
 - 🧵 **Thread-safe and stateless** — register one singleton and forget it
 - 🌍 **English ↔ Ukrainian, Russian, and Belarusian** (BE is opt-in), both directions, mixed text, digits and case preserved
 - 🛡️ **Safe by default** — `Correct()` returns the input unchanged unless the switched
@@ -48,7 +48,8 @@ Rekey fixes that on the server, per request, with no UI changes:
 dotnet add package Rekey
 ```
 
-Requires **.NET 8.0 or later** (targets `net8.0` and `net10.0`).
+Works everywhere: **.NET Framework 4.6.2+, .NET Core 2.0+, .NET 5+** (via `netstandard2.0`),
+with optimized builds for **.NET 8** and **.NET 10**.
 
 ## Usage
 
