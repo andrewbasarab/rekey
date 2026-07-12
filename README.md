@@ -20,6 +20,8 @@ rekey.Correct("руддщ");      // → "hello"    (English typed with a Cyrill
 rekey.Correct("beautiful");  // → "beautiful" (valid text passes through untouched)
 ```
 
+**[▶ Try it live in your browser](https://andrewbasarab.github.io/rekey/)** — the library running as WebAssembly.
+
 ## Why you want this
 
 Anyone who types in two layouts does it every day: they forget to switch, type
@@ -34,7 +36,9 @@ Rekey fixes that on the server, per request, with no UI changes:
 - 🧵 **Thread-safe and stateless** — register one singleton and forget it
 - 🌍 **English ↔ Russian and English ↔ Ukrainian**, both directions, mixed text, digits and case preserved
 - 🛡️ **Safe by default** — `Correct()` returns the input unchanged unless the switched
-  variant is actually a plausible word, so you can run it on every query
+  variant is actually a plausible word, and URLs, e-mails, camelCase identifiers, and
+  mixed-script tokens are never touched — so you can run it on every query
+- 🎚️ **Confidence score** — decide when to fix silently and when to show "did you mean …?"
 - ⚖️ **Clean licensing** — Apache-2.0 code; n-gram data generated from CC0/CC BY corpora
   (see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)) — safe for commercial use
 
@@ -67,6 +71,8 @@ result.WasCorrected;  // true      — a wrong layout was detected
 result.Corrected;     // "привіт"  — null when no switch was needed
 result.Original;      // "ghbdsn"
 result.Words;         // ["привіт"]
+result.Confidence;    // 0.9 — heuristic tiers: 1.0 untouched · 0.95 curated exception ·
+                      // 0.9 known word · 0.8 plausible switch · 0.55 ambiguous tie
 ```
 
 `RekeyResult` converts implicitly to `string` (yields `Text`).
@@ -123,13 +129,13 @@ Ukrainian words is 1.3%.
 
 ## Current limitations
 
-- No "smart filtering" yet: Rekey will attempt to switch any word-like token, including
-  emails, URLs, and identifiers. If your input contains such tokens, filter them before
-  calling Rekey (planned feature).
 - Languages: EN/RU/UK today. The n-gram approach ports cleanly to other non-Latin-script
   languages (Belarusian, Bulgarian, Greek, Hebrew, …) — open an issue if you need one.
 - Very short tokens (1–2 letters) are inherently ambiguous; use `new Rekey(minWordLength)`
   to leave them untouched.
+- Smart filtering recognizes URLs, e-mails, camelCase, and mixed-script tokens, but not
+  high-entropy strings like passwords or SKUs; disable it with
+  `new RekeyOptions { SmartFiltering = false }` if it gets in your way.
 
 ## Build & test
 

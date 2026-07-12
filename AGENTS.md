@@ -43,7 +43,8 @@ There are exactly two public types: the `Rekey` class and the `RekeyResult` it r
 | `WasCorrected` | `bool` | `true` if a wrong layout was detected and switched. |
 | `Corrected` | `string?` | Corrected text, or **`null`** when no switch was needed. |
 | `Original` | `string` | The input, unchanged. |
-| `Words` | `IReadOnlyList<string>` | Word tokens in corrected form. |
+| `Words` | `IReadOnlyList<string>` | Word tokens in corrected form (smart-filtered tokens excluded). |
+| `Confidence` | `double` | Heuristic tiers: 1.0 untouched · 0.95 curated exception · 0.9 known word · 0.8 plausible switch · 0.55 ambiguous tie. Apply silently at ≥ 0.8; hint below. |
 
 `RekeyResult` has an implicit `string` conversion (yields `Text`), so it can be used
 directly where a `string` is expected.
@@ -84,9 +85,10 @@ result.Words;         // ["привіт"]
   embedded known-word lists pick the real word. To disable a language or change priority:
   `new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk] })` — order = priority,
   omitted languages never appear in corrections.
-- **No smart filtering yet.** Rekey will attempt to switch *any* word token, including
-  things like emails, URLs, passwords, and camelCase identifiers. If your input may contain
-  such tokens and you don't want them touched, filter them out before calling Rekey.
+- **Smart filtering is on by default.** URLs (`://`, `www.`), e-mails, camelCase/PascalCase
+  identifiers, and mixed Latin+Cyrillic tokens are never corrected and are excluded from
+  `Words`. It does NOT recognize passwords/SKUs (high-entropy strings) — pre-filter those
+  yourself. Disable with `new RekeyOptions { SmartFiltering = false }`.
 
 ## Common pattern: PostgreSQL full-text search
 
