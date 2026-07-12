@@ -47,7 +47,8 @@
     <div class="options">
         <label><input type="checkbox" checked="@_ukrainian" @onchange="e => Toggle(Lang.Uk, e)" /> Ukrainian</label>
         <label><input type="checkbox" checked="@_russian" @onchange="e => Toggle(Lang.Ru, e)" /> Russian</label>
-        <span class="hint">— uncheck a language and its corrections disappear (RekeyOptions.Languages)</span>
+        <label><input type="checkbox" checked="@_belarusian" @onchange="e => Toggle(Lang.Be, e)" /> Belarusian</label>
+        <span class="hint">— toggle languages and their corrections appear/disappear (RekeyOptions.Languages)</span>
     </div>
 
     <footer>
@@ -68,6 +69,7 @@
 
     private bool _ukrainian = true;
     private bool _russian = true;
+    private bool _belarusian;
     private Rekey _rekey = new();
 
     public string Input { get; set; } = "ghbdsn";
@@ -79,10 +81,12 @@
         bool enabled = (bool)e.Value!;
         if (lang == Lang.Uk) _ukrainian = enabled;
         if (lang == Lang.Ru) _russian = enabled;
+        if (lang == Lang.Be) _belarusian = enabled;
 
         var languages = new List<Lang> { Lang.En };
         if (_russian) languages.Add(Lang.Ru);
         if (_ukrainian) languages.Add(Lang.Uk);
+        if (_belarusian) languages.Add(Lang.Be);
         _rekey = new Rekey(new RekeyOptions { Languages = languages });
     }
 }

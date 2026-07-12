@@ -10,7 +10,8 @@ Rekey detects text typed in the **wrong keyboard layout** and rekeys it into the
 word. Example: a user means to type `привіт` (Ukrainian) but leaves the English layout on
 and types `ghbdsn` → Rekey returns `привіт`.
 
-- Languages: **English, Russian, Ukrainian**, both directions (EN↔RU, EN↔UK).
+- Languages: **English, Russian, Ukrainian** by default, plus opt-in **Belarusian**
+  (`RekeyOptions.Languages`), both directions (EN↔RU/UK/BE).
 - N-gram analysis plus two compact embedded word lists for RU↔UK disambiguation — small and fast.
 - Target frameworks: **net8.0** and **net10.0** (requires .NET 8.0+). Namespace: `RekeyNet`. NuGet id: `Rekey`.
 

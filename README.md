@@ -32,9 +32,9 @@ searches, filters, and autocompletes silently fail.
 Rekey fixes that on the server, per request, with no UI changes:
 
 - ⚡ **Fast** — ~880,000 words/sec on a single thread; ~15 ms one-time load
-- 🪶 **Self-contained** — no dependencies, no network calls, dictionaries embedded (~1 MB package)
+- 🪶 **Self-contained** — no dependencies, no network calls, dictionaries embedded (~1.5 MB package)
 - 🧵 **Thread-safe and stateless** — register one singleton and forget it
-- 🌍 **English ↔ Russian and English ↔ Ukrainian**, both directions, mixed text, digits and case preserved
+- 🌍 **English ↔ Ukrainian, Russian, and Belarusian** (BE is opt-in), both directions, mixed text, digits and case preserved
 - 🛡️ **Safe by default** — `Correct()` returns the input unchanged unless the switched
   variant is actually a plausible word, and URLs, e-mails, camelCase identifiers, and
   mixed-script tokens are never touched — so you can run it on every query
@@ -85,6 +85,9 @@ var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk] });
 
 // Or keep all languages but prefer Ukrainian on ambiguity:
 var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Uk, Lang.Ru] });
+
+// Belarusian is available as an opt-in (experimental):
+var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Be] });
 ```
 
 ### Recipe: search that survives the wrong layout
@@ -129,8 +132,9 @@ Ukrainian words is 1.3%.
 
 ## Current limitations
 
-- Languages: EN/RU/UK today. The n-gram approach ports cleanly to other non-Latin-script
-  languages (Belarusian, Bulgarian, Greek, Hebrew, …) — open an issue if you need one.
+- Languages: EN/RU/UK by default plus opt-in Belarusian. The n-gram approach ports cleanly
+  to other non-Latin-script languages (Bulgarian, Greek, Hebrew, …) — open an issue if you
+  need one.
 - Very short tokens (1–2 letters) are inherently ambiguous; use `new Rekey(minWordLength)`
   to leave them untouched.
 - Smart filtering recognizes URLs, e-mails, camelCase, and mixed-script tokens, but not

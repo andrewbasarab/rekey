@@ -9,4 +9,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.*" />
+  </ItemGroup>
+
 </Project>

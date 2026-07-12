@@ -38,6 +38,20 @@ public class CorpusQualityTests
             $"({percent:F3}%, limit {maxFalsePositivePercent}%). Samples: {string.Join(", ", samples)}");
     }
 
+    [Fact]
+    public void BelarusianRealWordsAreLeftAlone()
+    {
+        // Belarusian is opt-in, so it gets its own gate with a BE-enabled instance
+        // (measured baseline July 2026: 0.092%).
+        var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Be] });
+        var words = ReadWords("words-be.txt");
+
+        int changed = words.Count(w => rekey.Correct(w) != w);
+        double percent = 100.0 * changed / words.Count;
+        Assert.True(percent <= 0.3,
+            $"words-be.txt: {changed:N0} of {words.Count:N0} real words were \"corrected\" ({percent:F3}%, limit 0.3%)");
+    }
+
     private static List<string> ReadWords(string fileName)
     {
         var assembly = Assembly.GetExecutingAssembly();

@@ -26,7 +26,7 @@ public sealed class Rekey
 
     private static readonly Lazy<Rekey> Shared = new(() => new Rekey());
 
-    private static readonly Lang[] AllCyrillicLangs = [Lang.Ru, Lang.Uk];
+    private static readonly Lang[] AllCyrillicLangs = [Lang.Ru, Lang.Uk, Lang.Be];
 
     private readonly NgramLangChecker _langChecker;
     private readonly Dictionary<string, string> _exceptions;
@@ -66,18 +66,18 @@ public sealed class Rekey
             throw new ArgumentException("At least one language must be enabled.", nameof(options));
 
         _enEnabled = languages.Contains(Lang.En);
-        _cyrillicLangs = languages.Where(l => l is Lang.Ru or Lang.Uk).ToArray();
+        _cyrillicLangs = languages.Where(l => l is Lang.Ru or Lang.Uk or Lang.Be).ToArray();
         _minWordLength = options.MinWordLength;
         _smartFiltering = options.SmartFiltering;
         _langChecker = NgramLangChecker.Create(languages);
         _exceptions = LoadExceptions();
 
-        // The RU/UK known-word tie-break is only needed when both compete.
+        // The known-word tie-break is only needed when Cyrillic languages compete.
         _knownWords = [];
         if (_cyrillicLangs.Length > 1)
         {
-            _knownWords[Lang.Ru] = LoadWordSet("knownwords-ru.txt");
-            _knownWords[Lang.Uk] = LoadWordSet("knownwords-uk.txt");
+            foreach (var lang in _cyrillicLangs)
+                _knownWords[lang] = LoadWordSet($"knownwords-{NgramLangChecker.FileSuffix(lang)}.txt");
         }
     }
 
@@ -255,37 +255,33 @@ public sealed class Rekey
     /// </summary>
     private (string Word, double Confidence)? SwitchToCyrillic(string canonical)
     {
-        string? first = null;
-        Lang firstLang = default;
+        // Collect the plausible candidates per enabled Cyrillic language, in priority order.
+        var candidates = new List<(Lang Lang, string Word)>(_cyrillicLangs.Length);
+        bool allSame = true;
 
         foreach (var lang in _cyrillicLangs)
         {
             string switched = Characters.SwitchLang(canonical, lang);
             if (!_langChecker.Check(lang, switched))
                 continue;
-
-            if (first is null)
-            {
-                first = switched;
-                firstLang = lang;
-                continue;
-            }
-
-            if (switched == first)
-                return (first, ConfidenceSwitch);
-            return PreferKnownWord(first, firstLang, switched, lang);
+            if (candidates.Count > 0 && candidates[0].Word != switched)
+                allSame = false;
+            candidates.Add((lang, switched));
         }
 
-        return first is null ? null : (first, ConfidenceSwitch);
-    }
+        if (candidates.Count == 0)
+            return null;
+        if (candidates.Count == 1 || allSame)
+            return (candidates[0].Word, ConfidenceSwitch);
 
-    private (string Word, double Confidence) PreferKnownWord(string first, Lang firstLang, string second, Lang secondLang)
-    {
-        if (_knownWords.TryGetValue(firstLang, out var knownFirst) && knownFirst.Contains(first))
-            return (first, ConfidenceKnownWord);
-        if (_knownWords.TryGetValue(secondLang, out var knownSecond) && knownSecond.Contains(second))
-            return (second, ConfidenceKnownWord);
-        return (first, ConfidenceAmbiguous);
+        // Several different plausible words — prefer a known dictionary word.
+        foreach (var (lang, word) in candidates)
+        {
+            if (_knownWords.TryGetValue(lang, out var known) && known.Contains(word))
+                return (word, ConfidenceKnownWord);
+        }
+
+        return (candidates[0].Word, ConfidenceAmbiguous);
     }
 
     /// <summary>
@@ -315,45 +311,37 @@ public sealed class Rekey
     {
         string corrected = token.Canonical;
 
-        // Determine which Cyrillic language this could be
-        bool hasUkChars = Characters.HasUkrainianSpecificChars(token.Canonical);
-        bool hasRuChars = Characters.HasRussianSpecificChars(token.Canonical);
-
-        if (hasUkChars ^ hasRuChars)
+        // Languages whose alphabet covers every character of the token — the only
+        // languages it could have been typed in. (E.g. "ы" rules out Ukrainian, "ї"
+        // rules out Russian and Belarusian.)
+        var fits = new List<Lang>(_cyrillicLangs.Length);
+        foreach (var lang in _cyrillicLangs)
         {
-            // Language-specific chars pin the layout the token was typed on.
-            var lang = hasUkChars ? Lang.Uk : Lang.Ru;
-            bool valid = _cyrillicLangs.Contains(lang) && _langChecker.Check(lang, token.Canonical);
-            if (!valid && _enEnabled)
+            if (Characters.WordFitsLang(lang, token.Canonical))
+                fits.Add(lang);
+        }
+
+        bool valid = false;
+        foreach (var lang in fits)
+        {
+            if (_langChecker.Check(lang, token.Canonical))
+            {
+                valid = true;
+                break;
+            }
+        }
+
+        if (!valid && _enEnabled)
+        {
+            // Not a plausible word in any fitting language — try reading it as English
+            // typed on one of the Cyrillic layouts.
+            foreach (var lang in fits.Count > 0 ? (IReadOnlyList<Lang>)fits : SwitchSourceLangs())
             {
                 string switched = Characters.SwitchToEn(token.Canonical, lang);
                 if (_langChecker.Check(Lang.En, switched))
+                {
                     corrected = switched;
-            }
-        }
-        else
-        {
-            // Shared chars only — valid if any enabled Cyrillic language accepts it
-            bool valid = false;
-            foreach (var lang in _cyrillicLangs)
-            {
-                if (_langChecker.Check(lang, token.Canonical))
-                {
-                    valid = true;
                     break;
-                }
-            }
-
-            if (!valid && _enEnabled)
-            {
-                foreach (var lang in SwitchSourceLangs())
-                {
-                    string switched = Characters.SwitchToEn(token.Canonical, lang);
-                    if (_langChecker.Check(Lang.En, switched))
-                    {
-                        corrected = switched;
-                        break;
-                    }
                 }
             }
         }

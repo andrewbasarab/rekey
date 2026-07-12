@@ -16,6 +16,13 @@ internal static class Characters
         ['б', 'в', 'г', 'ґ', 'д', 'ж', 'з', 'й', 'к', 'л', 'м', 'н',
          'п', 'р', 'с', 'т', 'ф', 'х', 'ц', 'ч', 'ш', 'щ', 'ь'];
 
+    private static readonly char[] VowelsBe =
+        ['а', 'е', 'ё', 'і', 'о', 'у', 'ы', 'э', 'ю', 'я'];
+
+    private static readonly char[] ConsonantsBe =
+        ['б', 'в', 'г', 'д', 'ж', 'з', 'й', 'к', 'л', 'м', 'н',
+         'п', 'р', 'с', 'т', 'ў', 'ф', 'х', 'ц', 'ч', 'ш', 'ь'];
+
     private static readonly char[] VowelsEn =
         ['a', 'e', 'i', 'o', 'u', 'y'];
 
@@ -27,14 +34,16 @@ internal static class Characters
     {
         [Lang.Ru] = VowelsRu,
         [Lang.En] = VowelsEn,
-        [Lang.Uk] = VowelsUk
+        [Lang.Uk] = VowelsUk,
+        [Lang.Be] = VowelsBe
     };
 
     private static readonly Dictionary<Lang, char[]> Consonants = new()
     {
         [Lang.Ru] = ConsonantsRu,
         [Lang.En] = ConsonantsEn,
-        [Lang.Uk] = ConsonantsUk
+        [Lang.Uk] = ConsonantsUk,
+        [Lang.Be] = ConsonantsBe
     };
 
     private static readonly HashSet<char> SeparatorsSet = new(
@@ -47,11 +56,12 @@ internal static class Characters
         ['f', 'd', 'u', 'l', 't', 'p', 'b', 'q', 'r', 'k', 'v', 'y', 'j', 'g', 'h', 'c', 'n', 'e', 'a',
          'w', 'x', 'i', 'o', 's', 'm', '\'', 'z']);
 
-    // Cyrillic chars that could be English. Includes RU-specific (ы,э) and UK-specific (і,є)
+    // Cyrillic chars that could be English. Includes RU-specific (ы,э), UK-specific (і,є)
+    // and BE-specific (ў) letters.
     private static readonly HashSet<char> RuOrPossibleEnSet = new(
         ['ф', 'и', 'с', 'в', 'у', 'а', 'п', 'р', 'ш', 'о', 'л', 'д', 'ь', 'т', 'щ',
          'з', 'й', 'к', 'ы', 'е', 'г', 'м', 'ц', 'ч', 'н', 'я', 'э',
-         'і', 'є']);
+         'і', 'є', 'ў']);
 
     // Cyrillic chars that could be separators. Includes RU-specific (ё,ъ) and UK-specific (ї,ґ)
     private static readonly HashSet<char> RuOrPossibleSeparatorSet = new(
@@ -105,6 +115,35 @@ internal static class Characters
         ['\''] = 'є', ['"'] = 'є', ['.'] = 'ю', ['>'] = 'ю', ['z'] = 'я'
     };
 
+    // EN → BE (like RU except: b→і, o→ў, ]→' — Belarusian has no и/щ/ъ)
+    private static readonly Dictionary<char, char> SwitchBeFromEn = new()
+    {
+        ['f'] = 'а', [','] = 'б', ['<'] = 'б', ['d'] = 'в', ['u'] = 'г',
+        ['l'] = 'д', ['t'] = 'е', ['`'] = 'ё', ['~'] = 'ё',
+        [';'] = 'ж', [':'] = 'ж', ['p'] = 'з', ['b'] = 'і',
+        ['q'] = 'й', ['r'] = 'к', ['k'] = 'л', ['v'] = 'м',
+        ['y'] = 'н', ['j'] = 'о', ['g'] = 'п', ['h'] = 'р',
+        ['c'] = 'с', ['n'] = 'т', ['e'] = 'у', ['a'] = 'ф',
+        ['['] = 'х', ['{'] = 'х', ['w'] = 'ц', ['x'] = 'ч',
+        ['i'] = 'ш', ['o'] = 'ў', [']'] = '\'', ['}'] = '\'',
+        ['s'] = 'ы', ['m'] = 'ь',
+        ['\''] = 'э', ['"'] = 'э', ['.'] = 'ю', ['>'] = 'ю', ['z'] = 'я'
+    };
+
+    // BE → EN
+    private static readonly Dictionary<char, char> SwitchEnFromBe = new()
+    {
+        ['ф'] = 'a', ['і'] = 'b', ['с'] = 'c', ['в'] = 'd',
+        ['у'] = 'e', ['а'] = 'f', ['п'] = 'g', ['р'] = 'h',
+        ['ш'] = 'i', ['о'] = 'j', ['л'] = 'k', ['д'] = 'l',
+        ['ь'] = 'm', ['т'] = 'n', ['ў'] = 'o', ['з'] = 'p',
+        ['й'] = 'q', ['к'] = 'r', ['ы'] = 's', ['е'] = 't',
+        ['г'] = 'u', ['м'] = 'v', ['ц'] = 'w', ['ч'] = 'x',
+        ['н'] = 'y', ['я'] = 'z',
+        ['э'] = '\'', ['б'] = ',', ['ё'] = '`', ['ж'] = ';',
+        ['х'] = '[', ['ю'] = '.'
+    };
+
     // UK → EN
     private static readonly Dictionary<char, char> SwitchEnFromUk = new()
     {
@@ -123,13 +162,15 @@ internal static class Characters
     {
         [Lang.Ru] = SwitchRuFromEn,
         [Lang.En] = SwitchEnFromRu,
-        [Lang.Uk] = SwitchUkFromEn
+        [Lang.Uk] = SwitchUkFromEn,
+        [Lang.Be] = SwitchBeFromEn
     };
 
     private static readonly Dictionary<Lang, Dictionary<char, char>> KeyboardLayoutsToEn = new()
     {
         [Lang.Ru] = SwitchEnFromRu,
-        [Lang.Uk] = SwitchEnFromUk
+        [Lang.Uk] = SwitchEnFromUk,
+        [Lang.Be] = SwitchEnFromBe
     };
 
     public static string SwitchLang(string word, Lang destinationLang)
@@ -196,6 +237,33 @@ internal static class Characters
     {
         foreach (char ch in word)
             if (!IsEnglishChar(ch)) return false;
+        return true;
+    }
+
+    private static readonly HashSet<char> BelarusianCharsSet = new(
+        "абвгдеёжзійклмнопрстуўфхцчшыьэюя");
+
+    public static bool IsBelarusianChar(char ch) =>
+        BelarusianCharsSet.Contains(ch);
+
+    /// <summary>
+    /// True when every character of <paramref name="word"/> belongs to the alphabet of
+    /// <paramref name="lang"/> — i.e. the word could have been typed in that language.
+    /// </summary>
+    public static bool WordFitsLang(Lang lang, string word)
+    {
+        foreach (char ch in word)
+        {
+            bool fits = lang switch
+            {
+                Lang.Ru => IsRussianChar(ch),
+                Lang.Uk => IsUkrainianChar(ch),
+                Lang.Be => IsBelarusianChar(ch),
+                Lang.En => IsEnglishChar(ch),
+                _ => false
+            };
+            if (!fits) return false;
+        }
         return true;
     }
 

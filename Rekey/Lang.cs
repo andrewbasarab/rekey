@@ -10,5 +10,8 @@ public enum Lang
     En,
 
     /// <summary>Ukrainian (ЙЦУКЕН layout with і/ї/є/ґ on the s/]/'/` keys).</summary>
-    Uk
+    Uk,
+
+    /// <summary>Belarusian (ЙЦУКЕН layout with і/ў/' on the b/o/] keys). Experimental, opt-in.</summary>
+    Be
 }

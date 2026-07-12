@@ -1,71 +1,100 @@
 using System.IO.Compression;
 using System.Text;
+using ZstdSharp;
 
-// Rekey.DictGen — regenerates the Ukrainian "nonexistent n-gram" dictionaries in
-// Rekey/Resources from a plain-text corpus. See tools/Rekey.DictGen/README.md for
-// corpus sources and the exact commands.
+// Rekey.DictGen — regenerates the per-language data files in Rekey/Resources from a
+// plain-text corpus. See tools/Rekey.DictGen/README.md for corpus sources and the exact
+// commands.
 //
 // Methodology (mirrors NgramLangChecker.Check semantics):
-//   2-grams  : exhaustive 33x33 alphabet pairs; "*xy" = never starts a word,
-//              "xy*" = never ends a word, "xy" = never at interior positions
-//              (offsets 1..len-3, matching the checker's middle scan).
-//   3-grams  : exhaustive vowel triples (10^3) never seen as a substring.
-//   First-4  : first 4 chars of English words switched EN->UK that never occur
-//              as the first 4 chars of a real Ukrainian word.
-//   4-grams  : all-consonant 4-char windows of switched English words that never
-//              occur as an all-consonant substring of a real Ukrainian word.
+//   2-grams  : exhaustive alphabet pairs; "*xy" = never starts a word, "xy*" = never
+//              ends a word, "xy" = never at interior positions (offsets 1..len-3,
+//              matching the checker's middle scan).
+//   3-grams  : exhaustive vowel triples never seen as a substring.
+//   First-4  : first 4 chars of English words switched EN->lang that never occur as
+//              the first 4 chars of a real word.
+//   4-grams  : all-consonant 4-char windows of switched English words that never occur
+//              as an all-consonant substring of a real word.
 
-const string Alphabet = "абвгґдежзиіїйклмнопрстуфхцчшщьюяє";
-const string Vowels = "аеєиіїоуюя";
-const string Consonants = "бвгґджзйклмнпрстфхцчшщь";
-
-// EN -> UK keyboard layout (letter keys + apostrophe), must match Characters.SwitchUkFromEn.
-var enToUk = new Dictionary<char, char>
+var languages = new Dictionary<string, LangConfig>
 {
-    ['a'] = 'ф', ['b'] = 'и', ['c'] = 'с', ['d'] = 'в', ['e'] = 'у', ['f'] = 'а',
-    ['g'] = 'п', ['h'] = 'р', ['i'] = 'ш', ['j'] = 'о', ['k'] = 'л', ['l'] = 'д',
-    ['m'] = 'ь', ['n'] = 'т', ['o'] = 'щ', ['p'] = 'з', ['q'] = 'й', ['r'] = 'к',
-    ['s'] = 'і', ['t'] = 'е', ['u'] = 'г', ['v'] = 'м', ['w'] = 'ц', ['x'] = 'ч',
-    ['y'] = 'н', ['z'] = 'я', ['\''] = 'є'
+    ["uk"] = new(
+        Alphabet: "абвгґдежзиіїйклмнопрстуфхцчшщьюяє",
+        Vowels: "аеєиіїоуюя",
+        Consonants: "бвгґджзйклмнпрстфхцчшщь",
+        // Letters on the keys where the UK layout differs from RU — used for the
+        // runtime RU/UK/BE tie-break lists.
+        DistinctiveChars: "іїєґ",
+        EnToLang: BuildMap("фисвуапршолдьтщзйкыегмцчня", extra: new()
+        {
+            ['b'] = 'и', ['o'] = 'щ', ['s'] = 'і', [']'] = 'ї', ['\''] = 'є'
+        })),
+    ["be"] = new(
+        Alphabet: "абвгдеёжзійклмнопрстуўфхцчшыьэюя",
+        Vowels: "аеёіоуыэюя",
+        Consonants: "бвгджзйклмнпрстўфхцчшь",
+        DistinctiveChars: "іўыэё",
+        EnToLang: BuildMap("фисвуапршолдьтщзйкыегмцчня", extra: new()
+        {
+            ['b'] = 'і', ['o'] = 'ў', ['s'] = 'ы', ['\''] = 'э'
+        }))
 };
-
-var alphabetSet = Alphabet.ToHashSet();
-var vowelSet = Vowels.ToHashSet();
-var consonantSet = Consonants.ToHashSet();
 
 return args switch
 {
-    ["extract", var output, .. var inputs] when inputs.Length > 0 => Extract(inputs, output),
-    ["generate", var wordsTsv, var wordsEn, var outDir, .. var rest] => Generate(
-        wordsTsv, wordsEn, outDir,
+    ["extract", var lang, var output, .. var inputs] when inputs.Length > 0 =>
+        Extract(Config(lang), inputs, output),
+    ["generate", var lang, var wordsTsv, var wordsEn, var outDir, .. var rest] => Generate(
+        lang, Config(lang), wordsTsv, wordsEn, outDir,
         rest.Length > 0 ? int.Parse(rest[0]) : 10,
-        rest.Length > 1 ? int.Parse(rest[1]) : 200),
+        rest.Length > 1 ? int.Parse(rest[1]) : 100),
     ["wordlist", var wordsTsv, var output, .. var rest] =>
         WordList(wordsTsv, output, rest.Length > 0 ? int.Parse(rest[0]) : 10),
-    ["knownwords-uk", var wordsTsv, var output, .. var rest] =>
-        KnownWordsUk(wordsTsv, output, rest.Length > 0 ? int.Parse(rest[0]) : 50),
+    ["knownwords", var lang, var wordsTsv, var output, .. var rest] =>
+        KnownWords(Config(lang), wordsTsv, output, rest.Length > 0 ? int.Parse(rest[0]) : 50),
     ["knownwords-ru", var wordsRu, var output] => KnownWordsRu(wordsRu, output),
-    ["validate", var wordsTsv, var resourceDir, .. var rest] =>
-        Validate(wordsTsv, resourceDir, rest.Length > 0 ? int.Parse(rest[0]) : 50000),
+    ["validate", var lang, var wordsTsv, var resourceDir, .. var rest] =>
+        Validate(lang, Config(lang), wordsTsv, resourceDir, rest.Length > 0 ? int.Parse(rest[0]) : 50000),
     _ => Usage()
 };
+
+LangConfig Config(string lang) => languages.TryGetValue(lang, out var c)
+    ? c
+    : throw new ArgumentException($"Unknown language '{lang}'. Supported: {string.Join(", ", languages.Keys)}");
+
+// The 26 base keys a-z map to the same characters in all ЙЦУКЕН-family layouts except
+// the handful in `extra` — start from the RU mapping and override.
+static Dictionary<char, char> BuildMap(string ruQwertyRow, Dictionary<char, char> extra)
+{
+    const string en = "abcdefghijklmnopqrstuvwxyz";
+    const string ru = "фисвуапршолдьтщзйкыегмцчня";
+    var map = new Dictionary<char, char>();
+    for (int i = 0; i < en.Length; i++)
+        map[en[i]] = ru[i];
+    map['\''] = 'э';
+    foreach (var (k, v) in extra)
+        map[k] = v;
+    return map;
+}
 
 int Usage()
 {
     Console.Error.WriteLine("""
         Usage:
-          extract  <output.tsv> <corpus.txt[.gz]>...      tokenize corpora -> word<TAB>count
-          generate <words.tsv> <words-en.txt> <outDir> [minFreq=10] [boundaryMinFreq=200]
-          wordlist <words.tsv> <output.txt> [minFreq=10]  flat word list (test resource)
-          knownwords-uk <words.tsv> <output.txt> [minFreq=50]  words with і/ї/є/ґ (RU/UK tie-break)
-          knownwords-ru <words-ru.txt> <output.txt>            words with ы/э/ъ/ё (RU/UK tie-break)
-          validate <words.tsv> <resourceDir> [topN=50000] false-positive rate of generated dicts
+          extract  <lang> <output.tsv> <corpus.txt[.gz|.zst]>...   tokenize corpora -> word<TAB>count
+          generate <lang> <words.tsv> <words-en.txt> <outDir> [minFreq=10] [boundaryMinFreq=100]
+          wordlist <words.tsv> <output.txt> [minFreq=10]           flat word list (test resource)
+          knownwords <lang> <words.tsv> <output.txt> [minFreq=50]  words with layout-distinctive letters
+          knownwords-ru <words-ru.txt> <output.txt>                RU words with ы/э/ъ/ё
+          validate <lang> <words.tsv> <resourceDir> [topN=50000]   false-positive rate of generated dicts
+        Languages: uk, be
         """);
     return 2;
 }
 
-int Extract(string[] inputs, string output)
+int Extract(LangConfig cfg, string[] inputs, string output)
 {
+    var alphabetSet = cfg.Alphabet.ToHashSet();
     var counts = new Dictionary<string, long>(1 << 22);
     long totalTokens = 0;
     var token = new StringBuilder(64);
@@ -74,8 +103,9 @@ int Extract(string[] inputs, string output)
     {
         Console.WriteLine($"Reading {input}...");
         using var raw = File.OpenRead(input);
-        using Stream stream = input.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)
-            ? new GZipStream(raw, CompressionMode.Decompress)
+        using Stream stream =
+            input.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ? new GZipStream(raw, CompressionMode.Decompress)
+            : input.EndsWith(".zst", StringComparison.OrdinalIgnoreCase) ? new DecompressionStream(raw)
             : raw;
         using var reader = new StreamReader(stream, Encoding.UTF8);
 
@@ -85,8 +115,8 @@ int Extract(string[] inputs, string output)
         {
             var c = (char)ch;
             // Keep whole lexical tokens together (letters incl. apostrophes/hyphen)
-            // so that e.g. Russian words are dropped entirely instead of being
-            // split into fragments that would pollute the Ukrainian word list.
+            // so that foreign words are dropped entirely instead of being split into
+            // fragments that would pollute the word list.
             if (char.IsLetter(c) || c is '\'' or '’' or 'ʼ' or '-')
             {
                 token.Append(char.ToLowerInvariant(c));
@@ -100,7 +130,7 @@ int Extract(string[] inputs, string output)
         }
         if (token.Length > 0)
             CountToken(token, counts, alphabetSet, ref totalTokens);
-        Console.WriteLine($"  cumulative: {totalTokens:N0} Ukrainian tokens, {counts.Count:N0} unique");
+        Console.WriteLine($"  cumulative: {totalTokens:N0} matching tokens, {counts.Count:N0} unique");
     }
 
     using var writer = new StreamWriter(output, false, new UTF8Encoding(false));
@@ -115,7 +145,7 @@ int Extract(string[] inputs, string output)
         foreach (var chunk in token.GetChunks())
             foreach (var c in chunk.Span)
                 if (!alphabet.Contains(c))
-                    return; // not a pure Ukrainian word (incl. apostrophes/hyphens) — skip
+                    return; // not purely in-alphabet (incl. apostrophes/hyphens) — skip
         var word = token.ToString();
         counts[word] = counts.GetValueOrDefault(word) + 1;
         total++;
@@ -147,8 +177,10 @@ List<(string Word, long Count)> LoadWordCounts(string wordsTsv, int minFreq)
 // impossible word starts/endings.
 (HashSet<string> Start2, HashSet<string> End2, HashSet<string> Mid2,
  HashSet<string> Vowel3, HashSet<string> Prefix4, HashSet<string> Cons4)
-    BuildEvidence(List<(string Word, long Count)> words, long boundaryMinFreq)
+    BuildEvidence(LangConfig cfg, List<(string Word, long Count)> words, long boundaryMinFreq)
 {
+    var vowelSet = cfg.Vowels.ToHashSet();
+    var consonantSet = cfg.Consonants.ToHashSet();
     var start2 = new HashSet<string>();
     var end2 = new HashSet<string>();
     var mid2 = new HashSet<string>();
@@ -187,18 +219,20 @@ List<(string Word, long Count)> LoadWordCounts(string wordsTsv, int minFreq)
     return (start2, end2, mid2, vowel3, prefix4, cons4);
 }
 
-int Generate(string wordsTsv, string wordsEnPath, string outDir, int minFreq, int boundaryMinFreq)
+int Generate(string langName, LangConfig cfg, string wordsTsv, string wordsEnPath, string outDir,
+    int minFreq, int boundaryMinFreq)
 {
     Console.WriteLine($"Loading corpus words (minFreq={minFreq}, boundaryMinFreq={boundaryMinFreq})...");
     var words = LoadWordCounts(wordsTsv, minFreq);
     Console.WriteLine($"  {words.Count:N0} words");
 
-    var (start2, end2, mid2, vowel3, prefix4, cons4) = BuildEvidence(words, boundaryMinFreq);
+    var (start2, end2, mid2, vowel3, prefix4, cons4) = BuildEvidence(cfg, words, boundaryMinFreq);
+    var consonantSet = cfg.Consonants.ToHashSet();
 
     // 2-grams: exhaustive alphabet x alphabet.
     var gram2 = new List<string>();
-    foreach (var a in Alphabet)
-        foreach (var b in Alphabet)
+    foreach (var a in cfg.Alphabet)
+        foreach (var b in cfg.Alphabet)
         {
             var g = $"{a}{b}";
             if (!start2.Contains(g)) gram2.Add("*" + g);
@@ -208,15 +242,15 @@ int Generate(string wordsTsv, string wordsEnPath, string outDir, int minFreq, in
 
     // 3-grams: exhaustive vowel^3.
     var gram3 = new List<string>();
-    foreach (var a in Vowels)
-        foreach (var b in Vowels)
-            foreach (var c in Vowels)
+    foreach (var a in cfg.Vowels)
+        foreach (var b in cfg.Vowels)
+            foreach (var c in cfg.Vowels)
             {
                 var g = $"{a}{b}{c}";
                 if (!vowel3.Contains(g)) gram3.Add(g);
             }
 
-    // Candidates from English words switched to the Ukrainian layout.
+    // Candidates from English words switched to the target layout.
     var first4 = new SortedSet<string>(StringComparer.Ordinal);
     var gram4 = new SortedSet<string>(StringComparer.Ordinal);
     var buffer = new char[128];
@@ -225,38 +259,38 @@ int Generate(string wordsTsv, string wordsEnPath, string outDir, int minFreq, in
         var en = line.Trim().ToLowerInvariant();
         if (en.Length < 4 || en.Length > buffer.Length) continue;
 
-        Span<char> uk = buffer.AsSpan(0, en.Length);
+        Span<char> sw = buffer.AsSpan(0, en.Length);
         bool ok = true;
         for (int i = 0; i < en.Length; i++)
         {
-            if (!enToUk.TryGetValue(en[i], out uk[i])) { ok = false; break; }
+            if (!cfg.EnToLang.TryGetValue(en[i], out sw[i])) { ok = false; break; }
         }
         if (!ok) continue;
 
-        var prefix = new string(uk[..4]);
+        var prefix = new string(sw[..4]);
         if (!prefix4.Contains(prefix)) first4.Add(prefix);
 
-        for (int i = 0; i + 4 <= uk.Length; i++)
+        for (int i = 0; i + 4 <= sw.Length; i++)
         {
-            if (consonantSet.Contains(uk[i]) && consonantSet.Contains(uk[i + 1])
-                && consonantSet.Contains(uk[i + 2]) && consonantSet.Contains(uk[i + 3]))
+            if (consonantSet.Contains(sw[i]) && consonantSet.Contains(sw[i + 1])
+                && consonantSet.Contains(sw[i + 2]) && consonantSet.Contains(sw[i + 3]))
             {
-                var g = new string(uk.Slice(i, 4));
+                var g = new string(sw.Slice(i, 4));
                 if (!cons4.Contains(g)) gram4.Add(g);
             }
         }
     }
 
     Directory.CreateDirectory(outDir);
-    WriteLines(Path.Combine(outDir, "nonexistent2gram-uk.txt"), gram2.OrderBy(s => s, StringComparer.Ordinal));
-    WriteLines(Path.Combine(outDir, "nonexistent3gram-uk.txt"), gram3);
-    WriteLines(Path.Combine(outDir, "nonexistentFirst4gram-uk.txt"), first4);
-    WriteLines(Path.Combine(outDir, "nonexistent4gram-uk.txt"), gram4);
+    WriteLines(Path.Combine(outDir, $"nonexistent2gram-{langName}.txt"), gram2.OrderBy(s => s, StringComparer.Ordinal));
+    WriteLines(Path.Combine(outDir, $"nonexistent3gram-{langName}.txt"), gram3);
+    WriteLines(Path.Combine(outDir, $"nonexistentFirst4gram-{langName}.txt"), first4);
+    WriteLines(Path.Combine(outDir, $"nonexistent4gram-{langName}.txt"), gram4);
 
-    Console.WriteLine($"nonexistent2gram-uk.txt      : {gram2.Count:N0}");
-    Console.WriteLine($"nonexistent3gram-uk.txt      : {gram3.Count:N0}");
-    Console.WriteLine($"nonexistentFirst4gram-uk.txt : {first4.Count:N0}");
-    Console.WriteLine($"nonexistent4gram-uk.txt      : {gram4.Count:N0}");
+    Console.WriteLine($"nonexistent2gram-{langName}.txt      : {gram2.Count:N0}");
+    Console.WriteLine($"nonexistent3gram-{langName}.txt      : {gram3.Count:N0}");
+    Console.WriteLine($"nonexistentFirst4gram-{langName}.txt : {first4.Count:N0}");
+    Console.WriteLine($"nonexistent4gram-{langName}.txt      : {gram4.Count:N0}");
     return 0;
 
     static void WriteLines(string path, IEnumerable<string> lines)
@@ -271,19 +305,16 @@ int WordList(string wordsTsv, string output, int minFreq)
 {
     var words = LoadWords(wordsTsv, minFreq);
     words.Sort(StringComparer.Ordinal);
-    using var writer = new StreamWriter(output, false, new UTF8Encoding(false)) { NewLine = "\n" };
-    foreach (var w in words)
-        writer.WriteLine(w);
-    Console.WriteLine($"Wrote {words.Count:N0} words (minFreq={minFreq}) to {output}");
+    WriteList(output, words);
     return 0;
 }
 
-// Known Ukrainian words containing UK-specific letters (і/ї/є/ґ). Used at runtime to
-// arbitrate RU vs UK when a wrong-layout token switches to a valid word in BOTH languages
-// (the layouts differ only on the s/]/'/` keys -> ы/ъ/э/ё vs і/ї/є/ґ).
-int KnownWordsUk(string wordsTsv, string output, int minFreq)
+// Known words containing layout-distinctive letters. Used at runtime to arbitrate
+// between Cyrillic languages when a wrong-layout token switches to a valid word in
+// several of them (the layouts differ only on a handful of keys).
+int KnownWords(LangConfig cfg, string wordsTsv, string output, int minFreq)
 {
-    var specific = new[] { 'і', 'ї', 'є', 'ґ' };
+    var specific = cfg.DistinctiveChars.ToCharArray();
     var words = LoadWords(wordsTsv, minFreq)
         .Where(w => w.Length >= 2 && w.IndexOfAny(specific) >= 0)
         .OrderBy(w => w, StringComparer.Ordinal);
@@ -317,14 +348,16 @@ void WriteList(string output, IEnumerable<string> words)
     Console.WriteLine($"Wrote {n:N0} words to {output}");
 }
 
-// Re-implements NgramLangChecker.Check(Lang.Uk, word) against the generated files and
-// reports how many real corpus words would be rejected (false positives).
-int Validate(string wordsTsv, string resourceDir, int topN)
+// Re-implements NgramLangChecker.Check against the generated files and reports how many
+// real corpus words would be rejected (false positives).
+int Validate(string langName, LangConfig cfg, string wordsTsv, string resourceDir, int topN)
 {
-    var gram2 = File.ReadAllLines(Path.Combine(resourceDir, "nonexistent2gram-uk.txt")).ToHashSet();
-    var gram3 = File.ReadAllLines(Path.Combine(resourceDir, "nonexistent3gram-uk.txt")).ToHashSet();
-    var first4 = File.ReadAllLines(Path.Combine(resourceDir, "nonexistentFirst4gram-uk.txt")).ToHashSet();
-    var gram4 = File.ReadAllLines(Path.Combine(resourceDir, "nonexistent4gram-uk.txt")).ToHashSet();
+    var vowelSet = cfg.Vowels.ToHashSet();
+    var consonantSet = cfg.Consonants.ToHashSet();
+    var gram2 = File.ReadAllLines(Path.Combine(resourceDir, $"nonexistent2gram-{langName}.txt")).ToHashSet();
+    var gram3 = File.ReadAllLines(Path.Combine(resourceDir, $"nonexistent3gram-{langName}.txt")).ToHashSet();
+    var first4 = File.ReadAllLines(Path.Combine(resourceDir, $"nonexistentFirst4gram-{langName}.txt")).ToHashSet();
+    var gram4 = File.ReadAllLines(Path.Combine(resourceDir, $"nonexistent4gram-{langName}.txt")).ToHashSet();
 
     var words = LoadWords(wordsTsv, 1).Take(topN).ToList();
     int rejected = 0;
@@ -370,3 +403,10 @@ int Validate(string wordsTsv, string resourceDir, int topN)
         return null;
     }
 }
+
+internal sealed record LangConfig(
+    string Alphabet,
+    string Vowels,
+    string Consonants,
+    string DistinctiveChars,
+    Dictionary<char, char> EnToLang);

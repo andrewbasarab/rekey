@@ -155,6 +155,36 @@ public class RekeyTests
         Assert.Equal("привыт", ruOnly.Correct("ghbdsn")); // the RU twin — UK is opted out
     }
 
+    // === Belarusian tests (opt-in language) ===
+
+    [Fact]
+    public void BelarusianIsOptIn()
+    {
+        // Not in the default language set — no Belarusian corrections by default
+        Assert.NotEqual("прывітанне", new Rekey().Correct("ghsdbnfyyt"));
+
+        var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Be] });
+
+        // "прывітанне" (hello) typed on the EN layout
+        Assert.Equal("прывітанне", rekey.Correct("ghsdbnfyyt"));
+
+        // "краіна" (country) typed on the EN layout
+        Assert.Equal("краіна", rekey.Correct("rhfbyf"));
+
+        // "hello" typed on the BE layout (о key holds ў)
+        Assert.Equal("hello", rekey.Correct("руддў"));
+    }
+
+    [Fact]
+    public void ThreeCyrillicLanguagesCoexist()
+    {
+        var rekey = new Rekey(new RekeyOptions { Languages = [Lang.En, Lang.Ru, Lang.Uk, Lang.Be] });
+
+        Assert.Equal("привіт", rekey.Correct("ghbdsn"));        // UK known word wins
+        Assert.Equal("мысль", rekey.Correct("vsckm"));          // RU known word wins
+        Assert.Equal("прывітанне", rekey.Correct("ghsdbnfyyt")); // BE known word wins
+    }
+
     [Fact]
     public void LanguagePriorityIsConfigurable()
     {

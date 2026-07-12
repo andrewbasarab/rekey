@@ -39,11 +39,12 @@ internal sealed class NgramLangChecker
         }
     }
 
-    private static string FileSuffix(Lang lang) => lang switch
+    internal static string FileSuffix(Lang lang) => lang switch
     {
         Lang.En => "en",
         Lang.Ru => "ru",
         Lang.Uk => "uk",
+        Lang.Be => "be",
         _ => throw new ArgumentOutOfRangeException(nameof(lang), lang, null)
     };
 
