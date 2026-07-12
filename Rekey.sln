@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "demo", "demo", "{A39C23D2-F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rekey.Demo", "demo\Rekey.Demo\Rekey.Demo.csproj", "{FC7FAACC-06A9-4DED-AA90-44F9509194FC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rekey.Benchmarks", "tools\Rekey.Benchmarks\Rekey.Benchmarks.csproj", "{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{FC7FAACC-06A9-4DED-AA90-44F9509194FC}.Release|x64.Build.0 = Release|Any CPU
 		{FC7FAACC-06A9-4DED-AA90-44F9509194FC}.Release|x86.ActiveCfg = Release|Any CPU
 		{FC7FAACC-06A9-4DED-AA90-44F9509194FC}.Release|x86.Build.0 = Release|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Debug|x64.Build.0 = Debug|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Debug|x86.Build.0 = Debug|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Release|x64.ActiveCfg = Release|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Release|x64.Build.0 = Release|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Release|x86.ActiveCfg = Release|Any CPU
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -80,5 +94,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{82D4720F-C604-4BBB-922A-8772C0430B6F} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 		{FC7FAACC-06A9-4DED-AA90-44F9509194FC} = {A39C23D2-F2C0-258D-165A-CF1E7FEE6E7B}
+		{DA2E8EE1-0B57-4A2A-A825-668CCF735BB5} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 EndGlobal

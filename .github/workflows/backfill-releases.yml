@@ -1,0 +1,32 @@
+name: Backfill GitHub Releases
+
+# One-time helper: creates GitHub Releases (with auto-generated notes) for tags that
+# were pushed before release.yml started creating them. Run manually from the Actions
+# tab; safe to re-run (skips tags that already have a release). Delete after use.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create missing releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(git tag --sort=version:refname); do
+            if gh release view "$tag" > /dev/null 2>&1; then
+              echo "$tag: release exists, skipping"
+            else
+              echo "$tag: creating release"
+              gh release create "$tag" --generate-notes --verify-tag
+            fi
+          done

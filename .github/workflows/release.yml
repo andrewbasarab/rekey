@@ -11,7 +11,7 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write # create the GitHub Release
   id-token: write # required for Trusted Publishing
 
 jobs:
@@ -40,3 +40,8 @@ jobs:
 
       - name: Push
         run: dotnet nuget push out/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ steps.login.outputs.NUGET_API_KEY }}
+
+      - name: GitHub Release (auto-generated notes + nupkg attached)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag out/*.nupkg

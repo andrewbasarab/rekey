@@ -126,10 +126,16 @@ plausible word in *both* languages (`ghbdsn` → `привыт`/`привіт`).
 embeds two compact lists of known words containing the layout-specific letters and picks
 the real word.
 
-The Ukrainian dictionaries are generated from ~378M tokens of real-world text
-(ParaCrawl, CC0 + UA-GEC, CC BY 4.0) by a fully reproducible tool in
-[tools/Rekey.DictGen](tools/Rekey.DictGen) — measured false-positive rate on real
-Ukrainian words is 1.3%.
+The Ukrainian and Belarusian dictionaries are generated from ~1.4B tokens of real-world
+text (ParaCrawl + UA-GEC + HPLT, all CC0/CC BY) by a fully reproducible tool in
+[tools/Rekey.DictGen](tools/Rekey.DictGen).
+
+**Measured safety** — share of real words wrongly "corrected" when run over the
+reference corpora (enforced by CI tests on every change):
+
+| Ukrainian | Russian | English | Belarusian |
+|---|---|---|---|
+| 0.22% | 0.002% | 0.05% | 0.09% |
 
 ## Current limitations
 
@@ -147,7 +153,10 @@ Ukrainian words is 1.3%.
 ```bash
 dotnet build -c Release
 dotnet test
+dotnet run -c Release --project tools/Rekey.Benchmarks   # BenchmarkDotNet suite
 ```
+
+Version history: [GitHub Releases](https://github.com/andrewbasarab/rekey/releases).
 
 ## Credits & license
 
