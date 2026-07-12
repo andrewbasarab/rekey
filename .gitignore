@@ -62,3 +62,6 @@ CLAUDE.md
 # VS publish profiles
 [Pp]roperties/PublishProfiles/
 *.pubxml
+
+# BenchmarkDotNet output
+BenchmarkDotNet.Artifacts/
