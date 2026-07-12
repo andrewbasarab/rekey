@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history + tags for release notes
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -41,7 +43,22 @@ jobs:
       - name: Push
         run: dotnet nuget push out/*.nupkg -s https://api.nuget.org/v3/index.json -k ${{ steps.login.outputs.NUGET_API_KEY }}
 
-      - name: GitHub Release (auto-generated notes + nupkg attached)
+      - name: GitHub Release (notes from commit subjects + nupkg attached)
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag out/*.nupkg
+        # --generate-notes only lists merged PRs; this repo commits straight to main,
+        # so build the bullet list from commit subjects since the previous tag instead.
+        run: |
+          prev=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          {
+            echo "## What's changed"
+            echo ""
+            if [ -n "$prev" ]; then
+              git log "$prev..$GITHUB_REF_NAME" --no-merges --pretty='- %s'
+              echo ""
+              echo "**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$prev...$GITHUB_REF_NAME"
+            else
+              git log "$GITHUB_REF_NAME" --no-merges --pretty='- %s'
+            fi
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag out/*.nupkg

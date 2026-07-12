@@ -1,8 +1,9 @@
 name: Backfill GitHub Releases
 
-# One-time helper: creates GitHub Releases (with auto-generated notes) for tags that
-# were pushed before release.yml started creating them. Run manually from the Actions
-# tab; safe to re-run (skips tags that already have a release). Delete after use.
+# One-time helper: creates or updates GitHub Releases for all tags with notes built
+# from commit subjects between tags (--generate-notes only lists PRs, and this repo
+# commits straight to main). Run manually from the Actions tab; safe to re-run —
+# it overwrites release notes with the regenerated commit list. Delete after use.
 
 on:
   workflow_dispatch:
@@ -18,15 +19,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Create missing releases
+      - name: Create or update releases with commit-based notes
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          prev=""
           for tag in $(git tag --sort=version:refname); do
+            {
+              echo "## What's changed"
+              echo ""
+              if [ -n "$prev" ]; then
+                git log "$prev..$tag" --no-merges --pretty='- %s'
+                echo ""
+                echo "**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$prev...$tag"
+              else
+                git log "$tag" --no-merges --pretty='- %s'
+              fi
+            } > notes.md
+
             if gh release view "$tag" > /dev/null 2>&1; then
-              echo "$tag: release exists, skipping"
+              echo "$tag: updating notes"
+              gh release edit "$tag" --notes-file notes.md
             else
               echo "$tag: creating release"
-              gh release create "$tag" --generate-notes --verify-tag
+              gh release create "$tag" --notes-file notes.md --verify-tag
             fi
+            prev="$tag"
           done
