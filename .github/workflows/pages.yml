@@ -1,0 +1,46 @@
+name: Deploy demo to GitHub Pages
+
+# One-time setup: repo Settings → Pages → Source: "GitHub Actions"
+
+on:
+  push:
+    branches: [main]
+    paths: ['demo/**', 'Rekey/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish demo
+        run: dotnet publish demo/Rekey.Demo/Rekey.Demo.csproj -c Release -o out
+
+      - name: Adjust base href for project pages
+        run: |
+          sed -i 's|<base href="/" />|<base href="/rekey/" />|' out/wwwroot/index.html
+          touch out/wwwroot/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out/wwwroot
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

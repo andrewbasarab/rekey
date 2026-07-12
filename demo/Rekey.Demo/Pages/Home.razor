@@ -1,0 +1,88 @@
+@page "/"
+@using RekeyNet
+
+<PageTitle>Rekey — wrong keyboard layout, fixed</PageTitle>
+
+<div class="demo">
+    <header>
+        <img src="icon.png" alt="Rekey" class="logo" />
+        <h1>Rekey</h1>
+        <p class="tagline">
+            Type with the wrong keyboard layout — Rekey turns it back into what you meant.
+            EN ↔ UK / RU, right in your browser (WebAssembly, no server).
+        </p>
+        <nav>
+            <a href="https://github.com/andrewbasarab/rekey" target="_blank">GitHub</a>
+            <span>·</span>
+            <a href="https://www.nuget.org/packages/Rekey" target="_blank">NuGet</a>
+        </nav>
+    </header>
+
+    <textarea rows="3" placeholder="Type here… e.g. ghbdsn"
+              @bind="Input" @bind:event="oninput" autofocus></textarea>
+
+    <div class="result @(Result.WasCorrected ? "corrected" : "")">
+        <div class="result-text">@Result.Text</div>
+        <div class="result-meta">
+            @if (Result.WasCorrected)
+            {
+                <span class="badge yes">corrected</span>
+                <span class="confidence">confidence @Result.Confidence.ToString("0.00")</span>
+            }
+            else if (!string.IsNullOrWhiteSpace(Input))
+            {
+                <span class="badge no">no correction needed</span>
+            }
+        </div>
+    </div>
+
+    <div class="examples">
+        <span class="examples-label">Try:</span>
+        @foreach (var example in Examples)
+        {
+            <button @onclick="() => Input = example">@example</button>
+        }
+    </div>
+
+    <div class="options">
+        <label><input type="checkbox" checked="@_ukrainian" @onchange="e => Toggle(Lang.Uk, e)" /> Ukrainian</label>
+        <label><input type="checkbox" checked="@_russian" @onchange="e => Toggle(Lang.Ru, e)" /> Russian</label>
+        <span class="hint">— uncheck a language and its corrections disappear (RekeyOptions.Languages)</span>
+    </div>
+
+    <footer>
+        <code>dotnet add package Rekey</code>
+    </footer>
+</div>
+
+@code {
+    private static readonly string[] Examples =
+    [
+        "ghbdsn",
+        "rdbnrb yf концерт",
+        "руддщ цщкдв",
+        "xfcnbwf",
+        "vsckm",
+        "ghbdsn test@ukr.net"
+    ];
+
+    private bool _ukrainian = true;
+    private bool _russian = true;
+    private Rekey _rekey = new();
+
+    public string Input { get; set; } = "ghbdsn";
+
+    private RekeyResult Result => _rekey.Analyze(Input);
+
+    private void Toggle(Lang lang, ChangeEventArgs e)
+    {
+        bool enabled = (bool)e.Value!;
+        if (lang == Lang.Uk) _ukrainian = enabled;
+        if (lang == Lang.Ru) _russian = enabled;
+
+        var languages = new List<Lang> { Lang.En };
+        if (_russian) languages.Add(Lang.Ru);
+        if (_ukrainian) languages.Add(Lang.Uk);
+        _rekey = new Rekey(new RekeyOptions { Languages = languages });
+    }
+}
