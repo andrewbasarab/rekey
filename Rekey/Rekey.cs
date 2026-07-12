@@ -18,6 +18,12 @@ public sealed class Rekey
     private const char Apostrophe = '\'';
     private const char Apostrophe1 = '`';
 
+    // Confidence tiers (see RekeyResult.Confidence)
+    private const double ConfidenceException = 0.95;
+    private const double ConfidenceKnownWord = 0.9;
+    private const double ConfidenceSwitch = 0.8;
+    private const double ConfidenceAmbiguous = 0.55;
+
     private static readonly Lazy<Rekey> Shared = new(() => new Rekey());
 
     private static readonly Lang[] AllCyrillicLangs = [Lang.Ru, Lang.Uk];
@@ -28,6 +34,7 @@ public sealed class Rekey
     private readonly bool _enEnabled;
     private readonly Lang[] _cyrillicLangs; // enabled Cyrillic languages, in priority order
     private readonly int _minWordLength;
+    private readonly bool _smartFiltering;
 
     /// <summary>
     /// Creates a new instance with default settings. Loads the embedded n-gram
@@ -61,6 +68,7 @@ public sealed class Rekey
         _enEnabled = languages.Contains(Lang.En);
         _cyrillicLangs = languages.Where(l => l is Lang.Ru or Lang.Uk).ToArray();
         _minWordLength = options.MinWordLength;
+        _smartFiltering = options.SmartFiltering;
         _langChecker = NgramLangChecker.Create(languages);
         _exceptions = LoadExceptions();
 
@@ -91,6 +99,39 @@ public sealed class Rekey
     /// </summary>
     public RekeyResult Analyze(string input)
     {
+        if (!_smartFiltering || string.IsNullOrEmpty(input))
+            return AnalyzeCore(input);
+
+        var segments = SplitByWhitespace(input);
+        if (!segments.Any(s => !char.IsWhiteSpace(s[0]) && IsProtectedToken(s)))
+            return AnalyzeCore(input);
+
+        var corrected = new System.Text.StringBuilder(input.Length);
+        var words = new List<string>();
+        double confidence = 1.0;
+
+        foreach (var segment in segments)
+        {
+            if (char.IsWhiteSpace(segment[0]) || IsProtectedToken(segment))
+            {
+                corrected.Append(segment);
+                continue;
+            }
+
+            var result = AnalyzeCore(segment);
+            corrected.Append(result.Text);
+            words.AddRange(result.Words);
+            if (result.Confidence < confidence)
+                confidence = result.Confidence;
+        }
+
+        string correctedText = corrected.ToString();
+        string? correctedResult = Canonical(correctedText) == Canonical(input) ? null : correctedText;
+        return new RekeyResult(input, correctedResult, words, correctedResult is null ? 1.0 : confidence);
+    }
+
+    private RekeyResult AnalyzeCore(string input)
+    {
         var uppercasePositions = Characters.UppercasePositions(input);
         string canonical = Canonical(input);
         var allTokens = Split(canonical);
@@ -107,7 +148,17 @@ public sealed class Rekey
             ? null
             : corrected;
 
-        return new RekeyResult(input, correctedResult, wordTokens);
+        double confidence = 1.0;
+        if (correctedResult != null)
+        {
+            foreach (var token in allTokens)
+            {
+                if (token.Confidence < confidence)
+                    confidence = token.Confidence;
+            }
+        }
+
+        return new RekeyResult(input, correctedResult, wordTokens, confidence);
     }
 
     internal List<Token> Split(string input)
@@ -182,11 +233,16 @@ public sealed class Rekey
     private List<Token> EnOrPossibleCyrillic(Token token)
     {
         string corrected = token.Canonical;
+        double confidence = 1.0;
 
-        if (!(_enEnabled && _langChecker.Check(Lang.En, token.Canonical)))
-            corrected = SwitchToCyrillic(token.Canonical) ?? token.Canonical;
+        if (!(_enEnabled && _langChecker.Check(Lang.En, token.Canonical))
+            && SwitchToCyrillic(token.Canonical) is { } switched)
+        {
+            corrected = switched.Word;
+            confidence = switched.Confidence;
+        }
 
-        return [BuildToken(token.Type, token.Corrected, token.Canonical, corrected)];
+        return [BuildToken(token.Type, token.Corrected, token.Canonical, corrected, confidence)];
     }
 
     /// <summary>
@@ -197,7 +253,7 @@ public sealed class Rekey
     /// "привыт"/"привіт"). N-grams cannot arbitrate that; the embedded known-word lists
     /// can. Falls back to configured language priority when neither word is known.
     /// </summary>
-    private string? SwitchToCyrillic(string canonical)
+    private (string Word, double Confidence)? SwitchToCyrillic(string canonical)
     {
         string? first = null;
         Lang firstLang = default;
@@ -216,20 +272,20 @@ public sealed class Rekey
             }
 
             if (switched == first)
-                return first;
+                return (first, ConfidenceSwitch);
             return PreferKnownWord(first, firstLang, switched, lang);
         }
 
-        return first;
+        return first is null ? null : (first, ConfidenceSwitch);
     }
 
-    private string PreferKnownWord(string first, Lang firstLang, string second, Lang secondLang)
+    private (string Word, double Confidence) PreferKnownWord(string first, Lang firstLang, string second, Lang secondLang)
     {
         if (_knownWords.TryGetValue(firstLang, out var knownFirst) && knownFirst.Contains(first))
-            return first;
+            return (first, ConfidenceKnownWord);
         if (_knownWords.TryGetValue(secondLang, out var knownSecond) && knownSecond.Contains(second))
-            return second;
-        return first;
+            return (second, ConfidenceKnownWord);
+        return (first, ConfidenceAmbiguous);
     }
 
     /// <summary>
@@ -244,9 +300,8 @@ public sealed class Rekey
         }
         else
         {
-            string? switched = SwitchToCyrillic(token.Canonical);
-            if (switched != null)
-                return [BuildToken(token.Type, token.Corrected, token.Canonical, switched)];
+            if (SwitchToCyrillic(token.Canonical) is { } switched)
+                return [BuildToken(token.Type, token.Corrected, token.Canonical, switched.Word, switched.Confidence)];
 
             return SplitBySpecificSeparators(token.Canonical, Characters.IsSeparatorOrPossibleRu, useExceptions: true);
         }
@@ -303,7 +358,8 @@ public sealed class Rekey
             }
         }
 
-        return [BuildToken(token.Type, token.Corrected, token.Canonical, corrected)];
+        double confidence = corrected == token.Canonical ? 1.0 : ConfidenceSwitch;
+        return [BuildToken(token.Type, token.Corrected, token.Canonical, corrected, confidence)];
     }
 
     /// <summary>
@@ -335,33 +391,104 @@ public sealed class Rekey
                     Characters.IsSeparatorOrPossibleRu,
                     useExceptions: true);
                 if (CheckAll(split, Lang.En))
-                    return split;
+                {
+                    // Tokens were built from the already-switched text; mark the words
+                    // as corrections so confidence propagates.
+                    return split
+                        .Select(t => t.IsWord
+                            ? new Token(t.Type, t.Original, t.Canonical, t.Corrected, t.CharTypes, ConfidenceSwitch)
+                            : t)
+                        .ToList();
+                }
             }
         }
 
         return [BuildToken(token.Type, token.Corrected, token.Canonical, token.Canonical)];
     }
 
+    /// <summary>Splits into alternating runs of whitespace and non-whitespace (none empty).</summary>
+    private static List<string> SplitByWhitespace(string input)
+    {
+        var segments = new List<string>();
+        int start = 0;
+        for (int i = 1; i <= input.Length; i++)
+        {
+            if (i == input.Length || char.IsWhiteSpace(input[i]) != char.IsWhiteSpace(input[start]))
+            {
+                segments.Add(input[start..i]);
+                start = i;
+            }
+        }
+        return segments;
+    }
+
+    /// <summary>
+    /// True for tokens that look intentional rather than mistyped — URLs, e-mails,
+    /// camelCase identifiers, mixed Latin+Cyrillic — which must never be "corrected".
+    /// </summary>
+    private static bool IsProtectedToken(string token)
+    {
+        if (token.Contains("://", StringComparison.Ordinal)
+            || token.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        int at = token.IndexOf('@');
+        if (at > 0 && at < token.Length - 1 && at == token.LastIndexOf('@')
+            && token.IndexOf('.', at) > at + 1)
+            return true;
+
+        bool hasLatin = false, hasCyrillic = false, camelCase = false;
+        for (int i = 0; i < token.Length; i++)
+        {
+            char c = token[i];
+            if (c is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z'))
+            {
+                hasLatin = true;
+                // internal lowercase→uppercase transition between Latin letters
+                if (i > 0 && c is >= 'A' and <= 'Z' && token[i - 1] is >= 'a' and <= 'z')
+                    camelCase = true;
+            }
+            else
+            {
+                char lower = char.ToLowerInvariant(c);
+                if (Characters.IsRussianChar(lower) || Characters.IsUkrainianChar(lower))
+                    hasCyrillic = true;
+            }
+        }
+
+        if (hasLatin && hasCyrillic) return true;      // mixed script — likely a brand name
+        if (camelCase && !hasCyrillic) return true;    // code-like identifier
+        return false;
+    }
+
     private static string Canonical(string candidate) =>
         candidate.Replace(Apostrophe1, Apostrophe).ToLowerInvariant();
 
-    private Token BuildToken(TokenType tokenType, string original, string canonical, string corrected) =>
-        BuildToken(tokenType, original, canonical, corrected, default, useException: true);
+    private Token BuildToken(TokenType tokenType, string original, string canonical, string corrected,
+        double confidence = 1.0) =>
+        BuildToken(tokenType, original, canonical, corrected, default, useException: true, confidence);
 
     private Token BuildToken(TokenType tokenType, string original, string canonical, string corrected,
-        CharTypeSet charTypes, bool useException = true)
+        CharTypeSet charTypes, bool useException = true, double confidence = 1.0)
     {
-        var type = useException && _exceptions.ContainsKey(canonical)
-            ? TokenType.Word
-            : tokenType;
+        string? exception = null;
+        bool isException = useException && _exceptions.TryGetValue(canonical, out exception);
 
-        var correctedValue = useException && _exceptions.TryGetValue(canonical, out string? exception)
-            ? exception
+        var type = isException ? TokenType.Word : tokenType;
+
+        var correctedValue = isException
+            ? exception!
             : canonical.Length < _minWordLength
                 ? canonical
                 : corrected;
 
-        return new Token(type, original, canonical, correctedValue, charTypes);
+        double confidenceValue = correctedValue == canonical
+            ? 1.0
+            : isException
+                ? ConfidenceException
+                : confidence;
+
+        return new Token(type, original, canonical, correctedValue, charTypes, confidenceValue);
     }
 
     private bool CheckAll(IEnumerable<Token> tokens, Lang lang)

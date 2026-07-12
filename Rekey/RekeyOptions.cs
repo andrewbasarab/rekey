@@ -20,4 +20,13 @@ public sealed class RekeyOptions
     /// to detect a layout reliably. Default: 0 (no minimum).
     /// </summary>
     public int MinWordLength { get; init; }
+
+    /// <summary>
+    /// When enabled (default), tokens that look intentional rather than mistyped are
+    /// never "corrected": URLs (<c>://</c>, <c>www.</c>), e-mail addresses,
+    /// camelCase/PascalCase identifiers, and mixed Latin+Cyrillic tokens (brand names).
+    /// Such tokens pass through unchanged and are not included in
+    /// <see cref="RekeyResult.Words"/>. Disable to run layout detection on every token.
+    /// </summary>
+    public bool SmartFiltering { get; init; } = true;
 }

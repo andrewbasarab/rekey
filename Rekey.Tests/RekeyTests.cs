@@ -165,6 +165,47 @@ public class RekeyTests
         Assert.Equal("подъезд", ukFirst.Correct("gjl]tpl"));
     }
 
+    [Fact]
+    public void ConfidenceReflectsEvidence()
+    {
+        var rekey = new Rekey();
+
+        // Nothing corrected → 1.0
+        Assert.Equal(1.0, rekey.Analyze("beautiful").Confidence);
+        Assert.Equal(1.0, rekey.Analyze("привіт").Confidence);
+
+        // Tie between RU/UK resolved by the known-word lists → 0.9
+        Assert.Equal(0.9, rekey.Analyze("ghbdsn").Confidence);  // привіт
+        Assert.Equal(0.9, rekey.Analyze("vsckm").Confidence);   // мысль
+
+        // Single n-gram-plausible switch → 0.8
+        Assert.Equal(0.8, rekey.Analyze("xfcnbwf").Confidence); // частица (RU/UK twins identical)
+        Assert.Equal(0.8, rekey.Analyze("руддщ").Confidence);   // hello
+
+        // Curated exception → 0.95
+        Assert.Equal(0.95, rekey.Analyze("wtynh").Confidence);  // центр
+    }
+
+    [Fact]
+    public void SmartFilteringSkipsTechnicalTokens()
+    {
+        var rekey = new Rekey();
+
+        // URLs, e-mails, camelCase, and mixed-script tokens are never "corrected"
+        Assert.Equal("https://example.com/ghbdsn", rekey.Correct("https://example.com/ghbdsn"));
+        Assert.Equal("www.ghbdsn.com", rekey.Correct("www.ghbdsn.com"));
+        Assert.Equal("test@ukr.net", rekey.Correct("test@ukr.net"));
+        Assert.Equal("myVariableName", rekey.Correct("myVariableName"));
+        Assert.Equal("iPhoneЧохол", rekey.Correct("iPhoneЧохол"));
+
+        // Normal words around protected tokens are still corrected
+        Assert.Equal("привіт test@ukr.net", rekey.Correct("ghbdsn test@ukr.net"));
+
+        // Opt-out restores raw behavior — without the filter even "https:" gets mangled
+        var raw = new Rekey(new RekeyOptions { SmartFiltering = false });
+        Assert.NotEqual("https://ghbdsn", raw.Correct("https://ghbdsn"));
+    }
+
     // === General tests ===
 
     [Fact]

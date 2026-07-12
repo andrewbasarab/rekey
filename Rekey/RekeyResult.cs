@@ -28,11 +28,23 @@ public sealed class RekeyResult
     /// <summary>The individual word tokens extracted from the input (in corrected form).</summary>
     public IReadOnlyList<string> Words { get; }
 
-    internal RekeyResult(string original, string? corrected, IReadOnlyList<string> words)
+    /// <summary>
+    /// How certain the correction is, as heuristic tiers (not a calibrated probability):
+    /// <c>1.0</c> — nothing was corrected; <c>0.95</c> — curated exception;
+    /// <c>0.9</c> — the corrected word is in the embedded known-word lists;
+    /// <c>0.8</c> — the switch produced an n-gram-plausible word;
+    /// <c>0.55</c> — the word was plausible in two languages and the tie was broken
+    /// only by configured priority. For a phrase, the lowest word tier wins.
+    /// Typical use: apply silently at ≥ 0.8, show a "did you mean …?" hint below.
+    /// </summary>
+    public double Confidence { get; }
+
+    internal RekeyResult(string original, string? corrected, IReadOnlyList<string> words, double confidence = 1.0)
     {
         Original = original;
         Corrected = corrected;
         Words = words;
+        Confidence = confidence;
     }
 
     /// <summary>Returns <see cref="Text"/>.</summary>

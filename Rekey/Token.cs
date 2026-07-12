@@ -8,13 +8,18 @@ internal sealed class Token
     public string Corrected { get; }
     public CharTypeSet CharTypes { get; }
 
-    public Token(TokenType type, string original, string canonical, string corrected, CharTypeSet charTypes = default)
+    /// <summary>How certain the correction of this token is; 1.0 when unchanged.</summary>
+    public double Confidence { get; }
+
+    public Token(TokenType type, string original, string canonical, string corrected,
+        CharTypeSet charTypes = default, double confidence = 1.0)
     {
         Type = type;
         Original = original;
         Canonical = canonical;
         Corrected = corrected;
         CharTypes = charTypes;
+        Confidence = confidence;
     }
 
     public bool IsWord => Type == TokenType.Word;
